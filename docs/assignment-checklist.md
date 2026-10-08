@@ -7,19 +7,19 @@
 
 | 요구사항 | 상태 | 구현 위치와 동작 | 검증 |
 | --- | --- | --- | --- |
-| 역할과 책임을 분리하는 아키텍처 적용 | 완료 | domain·application·adapter를 구분하는 헥사고날 아키텍처. [PostUseCase](../src/main/java/org/sopt/post/application/port/in/PostUseCase.java)와 출력 포트로 외부 형식·저장 방식 분리 | [PostServiceTest](../src/test/java/org/sopt/post/application/service/PostServiceTest.java), [PostControllerTest](../src/test/java/org/sopt/post/adapter/in/api/PostControllerTest.java) 및 소스 의존성 검토 |
-| 빈 제목·본문의 게시글 작성 금지 | 완료 | [Post](../src/main/java/org/sopt/post/domain/Post.java)에서 null과 isBlank()를 검증. 수정에도 같은 규칙 적용 | PostServiceTest의 생성·수정 검증, PostControllerTest의 오류 응답 |
-| 필수 카테고리 Enum과 추가 필드 | 완료 | [Category](../src/main/java/org/sopt/post/domain/Category.java), Post의 author·createdAt·id. 카테고리와 작성자는 필수 | PostServiceTest의 카테고리·작성자 검증과 수정 시 메타데이터 유지, PostControllerTest의 결과 변환 |
-| 존재하지 않는 게시글 등을 Exception으로 처리 | 완료 | [PostException](../src/main/java/org/sopt/post/domain/exception/PostException.java)과 [PostErrorCode](../src/main/java/org/sopt/post/domain/exception/PostErrorCode.java). 서비스가 예외를 던지고 서버 경계에서 실패 응답 생성 | PostServiceTest의 없는 ID 처리, PostControllerTest의 POST_NOT_FOUND 응답 |
+| 역할과 책임을 분리하는 아키텍처 적용 | 완료 | domain·application·adapter를 구분하는 헥사고날 아키텍처. [PostCommandUseCase](../src/main/java/org/sopt/post/application/port/in/command/PostCommandUseCase.java)·[PostQueryUseCase](../src/main/java/org/sopt/post/application/port/in/query/PostQueryUseCase.java)와 출력 포트로 외부 형식·저장 방식 분리 | [PostCommandQueryServiceTest](../src/test/java/org/sopt/post/application/service/PostCommandQueryServiceTest.java), [PostCommandQueryControllerTest](../src/test/java/org/sopt/post/adapter/in/api/PostCommandQueryControllerTest.java) 및 소스 의존성 검토 |
+| 빈 제목·본문의 게시글 작성 금지 | 완료 | [Post](../src/main/java/org/sopt/post/domain/Post.java)에서 null과 isBlank()를 검증. 수정에도 같은 규칙 적용 | PostCommandQueryServiceTest의 생성·수정 검증, PostCommandQueryControllerTest의 오류 응답 |
+| 필수 카테고리 Enum과 추가 필드 | 완료 | [Category](../src/main/java/org/sopt/post/domain/Category.java), Post의 author·createdAt·id. 카테고리와 작성자는 필수 | PostCommandQueryServiceTest의 카테고리·작성자 검증과 수정 시 메타데이터 유지, PostCommandQueryControllerTest의 결과 변환 |
+| 존재하지 않는 게시글 등을 Exception으로 처리 | 완료 | [PostException](../src/main/java/org/sopt/post/domain/exception/PostException.java)과 [PostErrorCode](../src/main/java/org/sopt/post/domain/exception/PostErrorCode.java). 서비스가 예외를 던지고 서버 경계에서 실패 응답 생성 | PostCommandQueryServiceTest의 없는 ID 처리, PostCommandQueryControllerTest의 POST_NOT_FOUND 응답 |
 
 ## 심화 과제
 
 | 요구사항 | 상태 | 구현 위치와 동작 | 검증 |
 | --- | --- | --- | --- |
-| 입출력·예외 처리·저장소 관리와 접근의 분리 | 완료 | [PostInput](../src/main/java/org/sopt/client/console/PostInput.java)과 [PostView](../src/main/java/org/sopt/client/console/PostView.java), [GlobalExceptionHandler](../src/main/java/org/sopt/global/exception/GlobalExceptionHandler.java), [PostRepositoryPort](../src/main/java/org/sopt/post/application/port/out/PostRepositoryPort.java)와 저장소 구현 | [PostConsoleClientTest](../src/test/java/org/sopt/client/console/PostConsoleClientTest.java), [GlobalExceptionHandlerTest](../src/test/java/org/sopt/global/exception/GlobalExceptionHandlerTest.java), [InMemoryPostRepositoryTest](../src/test/java/org/sopt/post/adapter/out/persistence/InMemoryPostRepositoryTest.java) |
-| HashMap 저장소와 별도 ID 생성 로직 | 완료 | [InMemoryPostRepository](../src/main/java/org/sopt/post/adapter/out/persistence/InMemoryPostRepository.java)의 HashMap, [PostIdGeneratorPort](../src/main/java/org/sopt/post/application/port/out/PostIdGeneratorPort.java)와 [SequentialPostIdGenerator](../src/main/java/org/sopt/post/adapter/out/id/SequentialPostIdGenerator.java). 삭제 후에도 기존 ID 유지 | InMemoryPostRepositoryTest의 ID 정렬·중복 저장·없는 대상 교체, [SequentialPostIdGeneratorTest](../src/test/java/org/sopt/post/adapter/out/id/SequentialPostIdGeneratorTest.java)와 PostServiceTest의 ID 비재사용 |
-| Main·View를 클라이언트로, 나머지 게시글 처리를 서버로 분리 | 완료 | [Main](../src/main/java/org/sopt/Main.java)과 client/console이 클라이언트. [PostController](../src/main/java/org/sopt/post/adapter/in/api/PostController.java)·application·domain·저장소가 서버. 같은 JVM에서 직접 호출 | PostConsoleClientTest의 실제 서버 컨트롤러를 통한 CRUD, 소스 의존성 검토 |
-| 클라이언트가 처리할 공통 응답 객체 | 완료 | [BaseResponse](../src/main/java/org/sopt/global/response/BaseResponse.java)의 success·code·message·data. 모든 서버 컨트롤러 메서드가 반환 | [BaseResponseTest](../src/test/java/org/sopt/global/response/BaseResponseTest.java), GlobalExceptionHandlerTest, PostControllerTest, PostConsoleClientTest |
+| 입출력·예외 처리·저장소 관리와 접근의 분리 | 완료 | [PostInput](../src/main/java/org/sopt/client/console/PostInput.java)과 [PostView](../src/main/java/org/sopt/client/console/PostView.java), [GlobalExceptionHandler](../src/main/java/org/sopt/global/exception/GlobalExceptionHandler.java), [LoadPostPort](../src/main/java/org/sopt/post/application/port/out/LoadPostPort.java)·[SavePostPort](../src/main/java/org/sopt/post/application/port/out/SavePostPort.java)와 저장소 구현 | [PostConsoleClientTest](../src/test/java/org/sopt/client/console/PostConsoleClientTest.java), [GlobalExceptionHandlerTest](../src/test/java/org/sopt/global/exception/GlobalExceptionHandlerTest.java), [InMemoryPostRepositoryTest](../src/test/java/org/sopt/post/adapter/out/persistence/InMemoryPostRepositoryTest.java) |
+| HashMap 저장소와 별도 ID 생성 로직 | 완료 | [InMemoryPostRepository](../src/main/java/org/sopt/post/adapter/out/persistence/InMemoryPostRepository.java)의 HashMap, [PostIdGeneratorPort](../src/main/java/org/sopt/post/application/port/out/PostIdGeneratorPort.java)와 [SequentialPostIdGenerator](../src/main/java/org/sopt/post/adapter/out/id/SequentialPostIdGenerator.java). 삭제 후에도 기존 ID 유지 | InMemoryPostRepositoryTest의 ID 정렬·중복 저장·없는 대상 교체, [SequentialPostIdGeneratorTest](../src/test/java/org/sopt/post/adapter/out/id/SequentialPostIdGeneratorTest.java)와 PostCommandQueryServiceTest의 ID 비재사용 |
+| Main·View를 클라이언트로, 나머지 게시글 처리를 서버로 분리 | 완료 | [Main](../src/main/java/org/sopt/Main.java)과 client/console이 클라이언트. [PostCommandController](../src/main/java/org/sopt/post/adapter/in/api/PostCommandController.java)·[PostQueryController](../src/main/java/org/sopt/post/adapter/in/api/PostQueryController.java)·application·domain·저장소가 서버. 같은 JVM에서 직접 호출 | PostConsoleClientTest의 실제 서버 컨트롤러를 통한 CRUD, 소스 의존성 검토 |
+| 클라이언트가 처리할 공통 응답 객체 | 완료 | [BaseResponse](../src/main/java/org/sopt/global/response/BaseResponse.java)의 success·code·message·data. 모든 서버 컨트롤러 메서드가 반환 | [BaseResponseTest](../src/test/java/org/sopt/global/response/BaseResponseTest.java), GlobalExceptionHandlerTest, PostCommandQueryControllerTest, PostConsoleClientTest |
 
 클라이언트·서버 분리는 과제에서 가정한 역할 분리로 구현했습니다. 실제 HTTP 서버는 포함하지 않습니다.
 Main은 서버 구성 팩토리를 호출해 두 역할을 연결하지만 게시글 처리나 저장소에 직접 접근하지 않습니다.
@@ -30,7 +30,10 @@ Main은 서버 구성 팩토리를 호출해 두 역할을 연결하지만 게�
 - 빈 저장소에서는 ID를 묻지 않으며, 없는 수정 대상에는 새 제목·본문을 묻지 않습니다.
 - 생성·수정 입력 도중 EOF가 발생하면 미완성 요청 없이 정상 종료합니다.
 - 단건 콘솔 조회는 같은 게시글을 한 번만 요청합니다.
-- 불변 Post의 수정 결과는 서비스가 저장소에 반영하며 이전 조회 객체는 유지됩니다.
+- 불변 Post의 수정 결과는 Command 서비스가 저장소에 반영하며 이전 조회 객체는 유지됩니다.
+- 한 번 구성한 Command·Query 컨트롤러는 같은 저장소를 공유하며 다른 구성 호출과는 상태·ID가 독립적입니다.
+- 저장소가 교체 실패를 반환해도 기존 Post는 유지되고 POST_NOT_FOUND로 처리합니다.
+- Query 서비스에는 조회 포트만 주입하고, Command 서비스의 내부 대상 조회도 조회 포트를 사용합니다.
 - DTO와 도메인 카테고리는 명시적인 switch로 변환합니다.
 - 실패 응답에 데이터가 있거나 성공 여부와 코드가 모순되면 BaseResponse 생성자가 거부합니다.
 - 예상하지 못한 서버 오류는 원인을 로그에 남기고 클라이언트에는 일반 오류 메시지를 전달합니다.

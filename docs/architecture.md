@@ -32,14 +32,20 @@ org.sopt
     │       ├── PostException
     │       └── PostErrorCode
     ├── application
-    │   ├── port/in/PostUseCase
+    │   ├── port/in
+    │   │   ├── command/PostCommandUseCase
+    │   │   └── query/PostQueryUseCase
     │   ├── port/out
-    │   │   ├── PostRepositoryPort
+    │   │   ├── LoadPostPort
+    │   │   ├── SavePostPort
     │   │   └── PostIdGeneratorPort
-    │   └── service/PostService
+    │   └── service
+    │       ├── command/PostCommandService
+    │       └── query/PostQueryService
     └── adapter
         ├── in/api
-        │   ├── PostController
+        │   ├── PostCommandController
+        │   ├── PostQueryController
         │   └── dto
         │       ├── PostCategory
         │       ├── request
@@ -59,30 +65,41 @@ org.sopt
 | `PostConsoleClient` | 메뉴 반복, 요청 DTO 구성, 공통 응답 처리 |
 | `PostInput` | 입력·숫자 변환·카테고리 선택 및 재입력 |
 | `PostView` | 주입받은 PrintStream으로 메뉴·게시글·메시지 출력 |
-| `PostController` | 서버 진입점, 요청 변환, 유스케이스 호출, 결과 DTO 변환 |
+| `PostCommandController` | 생성·수정·삭제 요청 확인, DTO 변환, Command 호출과 공통 응답 |
+| `PostQueryController` | 조회 요청 전달, 결과 DTO 변환과 공통 응답 |
 | `GlobalExceptionHandler` | 서버 작업의 성공·실패를 BaseResponse로 변환 |
-| `PostUseCase` / `PostService` | 게시글 유스케이스 계약과 구현 |
+| `PostCommandUseCase` / `PostCommandService` | 게시글 상태 변경의 계약과 처리 흐름 |
+| `PostQueryUseCase` / `PostQueryService` | 게시글 조회의 계약과 처리 흐름 |
 | `Post` | 불변 게시글 상태와 생성·수정 검증 |
-| `PostRepositoryPort` | 저장소 접근 계약 |
+| `LoadPostPort` | 저장소 조회 계약 |
+| `SavePostPort` | 저장소 생성·교체·삭제 계약 |
 | `InMemoryPostRepository` | HashMap 관리 |
 | `PostIdGeneratorPort` / `SequentialPostIdGenerator` | ID 발급 계약과 구현 |
 | `PostServerConfiguration` | 서버 객체의 생성과 의존성 연결 |
 
 ```mermaid
 flowchart LR
-    Client[콘솔 클라이언트] -->|요청 DTO| Controller[서버 PostController]
-    Controller --> UseCase[PostUseCase]
-    Service[PostService] -. 구현 .-> UseCase
-    Service --> RepositoryPort[PostRepositoryPort]
-    Repository[InMemoryPostRepository] -. 구현 .-> RepositoryPort
-    Service --> IdPort[PostIdGeneratorPort]
-    Generator[SequentialPostIdGenerator] -. 구현 .-> IdPort
-    Controller -->|BaseResponse와 결과 DTO| Client
+    Client[콘솔 클라이언트] --> CommandController[PostCommandController]
+    Client --> QueryController[PostQueryController]
+    CommandController --> CommandPort[PostCommandUseCase]
+    QueryController --> QueryPort[PostQueryUseCase]
+    CommandService[PostCommandService] -. 구현 .-> CommandPort
+    QueryService[PostQueryService] -. 구현 .-> QueryPort
+    CommandService --> Load[LoadPostPort]
+    CommandService --> Save[SavePostPort]
+    CommandService --> Id[PostIdGeneratorPort]
+    QueryService --> Load
+    Repository[공유 InMemoryPostRepository] -. 구현 .-> Load
+    Repository -. 구현 .-> Save
+    Generator[SequentialPostIdGenerator] -. 구현 .-> Id
 ```
 
 클라이언트는 서버 도메인, 유스케이스, 저장소를 직접 사용하지 않습니다.
 서버는 콘솔 입력·출력 객체를 참조하지 않습니다.
 Main의 서버 구성 팩토리 호출은 같은 프로세스에서 두 역할을 실행하기 위한 연결입니다.
+PostServerConfiguration.createControllers()는 공유 저장소에 연결된 두 컨트롤러를 한 번에 생성합니다.
+Controllers record는 객체 조립 결과를 묶는 값이며, 게시글 API를 다시 합치는 중간 계층은 아닙니다.
+Main은 이 쌍을 풀어 콘솔에 두 컨트롤러를 각각 주입합니다.
 
 Request·Response DTO는 서버 입력 어댑터 아래에 있습니다. 유스케이스에는 개별 인자를
 전달하므로 서버 application 계층은 전송 DTO를 알지 못합니다.
@@ -94,7 +111,7 @@ Request·Response DTO는 서버 입력 어댑터 아래에 있습니다. 유스�
 
 ## 공통 응답과 전역 예외 처리
 
-모든 서버 메서드는 `BaseResponse<T>`를 반환합니다.
+Command·Query 컨트롤러의 모든 기능 메서드는 `BaseResponse<T>`를 반환합니다.
 
 | 필드 | 의미 |
 | --- | --- |
@@ -177,17 +194,52 @@ ID 1, 2, 3 중 2를 삭제하면 1, 3이 남고 다음 발급 ID는 4입니다.
 | out | 애플리케이션에서 저장소·ID 발급 등의 기능을 호출하는 방향 |
 
 in·out은 요청 데이터와 응답 데이터가 이동하는 방향을 뜻하지 않습니다.
-PostController는 PostUseCase를 호출하고, PostService는 PostRepositoryPort와 PostIdGeneratorPort를 사용합니다.
+PostCommandController는 PostCommandUseCase를, PostQueryController는 PostQueryUseCase를 호출합니다.
+PostCommandService는 LoadPostPort·SavePostPort·PostIdGeneratorPort를 사용하고,
+PostQueryService는 LoadPostPort만 사용합니다.
 저장소와 ID 발급 어댑터가 애플리케이션에 정의된 출력 포트를 구현하므로 서비스는 구체 구현에 의존하지 않습니다.
 PostServerConfiguration에서 구현체를 생성해 생성자로 주입합니다.
 
 ## 설계 선택과 변경 범위
 
+### Command와 Query를 분리한 이유
+
+기존에는 하나의 PostUseCase·PostService·PostController가 조회와 상태 변경을 모두 담당했습니다.
+규모가 커지면 변경에는 권한·검증·트랜잭션 요구가, 조회에는 검색·필터·정렬·페이지네이션 요구가 늘어납니다.
+이번에는 이 두 책임이 독립적으로 확장되는 구조를 학습하기 위해 호출 계약부터 분리했습니다.
+
+| 구분 | Command | Query |
+| --- | --- | --- |
+| 목적 | 게시글 상태 변경 | 상태를 변경하지 않고 정보 조회 |
+| 기능 | createPost, updatePost, deletePost | getPosts, getPost, hasPosts |
+| 입력 포트 | PostCommandUseCase | PostQueryUseCase |
+| 서비스 | PostCommandService | PostQueryService |
+| 컨트롤러 | PostCommandController | PostQueryController |
+| 저장소 접근 | LoadPostPort + SavePostPort | LoadPostPort |
+| ID 발급 | 사용 | 사용하지 않음 |
+
+**얻는 효과:** 조회 서비스는 조회 계약만 주입받으므로 그 의존성을 통해 저장·수정·삭제를 호출할 수 없습니다.
+조회와 변경의 메서드 및 의존성이 구분되어, 기능 추가와 리뷰에서 어느 흐름을 바꾸는지 더 명확해집니다.
+테스트도 각 흐름을 구분해 구성할 수 있습니다. 두 흐름의 상호 작용은 같은 저장소를 사용하는 통합 시나리오로 검증합니다.
+
+Command도 조회할 수 있습니다. updatePost는 저장된 게시글을 읽고 검증한 새 Post로 교체해야 합니다.
+그 조회는 변경 작업의 내부 단계이므로 Query 서비스를 호출하지 않고 LoadPostPort를 사용합니다.
+이는 조회 API가 변경 책임을 갖는 것과 다릅니다.
+
+**비용과 적용 범위:** 클래스와 인터페이스가 늘어나 단순 CRUD에서는 탐색할 파일이 많아집니다.
+현재는 학습 목적의 기본 Command/Query 분리이며, 입력 포트는 각 하나로 묶고 기존 DTO·개별 인자를 유지합니다.
+기능별 UseCase와 내부 Command·Info DTO는 추가하지 않습니다.
+
+Load/Save 계약을 분리해도 메모리 저장소는 하나의 HashMap을 공유합니다. Command의 결과는 Query에서 즉시 조회됩니다.
+조회용 DB·변경용 DB, 별도 조회 모델, 이벤트 동기화는 도입하지 않았습니다.
+현재는 Spring을 사용하지 않으므로 트랜잭션이나 readOnly 설정도 없습니다.
+
+
 ### 불변 게시글
 
 저장소가 변경 가능한 Post를 공유하면 조회한 객체를 수정하는 것만으로 저장소의 값이 바뀔 수 있습니다.
 이를 막기 위해 Post를 불변 객체로 두고, update는 검증한 새 객체를 반환하도록 했습니다.
-PostService가 그 객체를 저장소에 반영하며, 이전 객체와 조회 결과는 유지됩니다.
+PostCommandService가 그 객체를 저장소에 반영하며, 이전 객체와 조회 결과는 유지됩니다.
 수정마다 객체를 생성하지만 저장소에서는 같은 ID의 값을 교체하므로 게시글 수가 늘어나지는 않습니다.
 
 ### DTO 안의 변환 메서드
@@ -205,7 +257,7 @@ Category는 도메인의 분류이고 PostCategory는 외부 요청·응답에�
 
 ### 조회 결과와 목록 계약
 
-PostRepositoryPort.findAll은 ID 오름차순의 독립된 목록 스냅샷을 반환합니다.
+LoadPostPort.findAll은 ID 오름차순의 독립된 목록 스냅샷을 반환합니다.
 반환 목록의 수정 가능 여부는 포트 계약에서 보장하지 않지만, 목록 변경은 저장소에 반영되지 않습니다.
 현재 저장소는 수정 가능한 복사본을 반환하고 서버 컨트롤러는 수정 불가능한 DTO 목록을 반환합니다.
 단건 콘솔 조회는 대상 선택에서 받은 PostResponse를 재사용해 같은 게시글을 다시 요청하지 않습니다.

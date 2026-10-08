@@ -13,9 +13,9 @@ import org.sopt.post.config.PostServerConfiguration;
  */
 public class Main {
   public static void main(String[] args) {
-    var controller = PostServerConfiguration.createController();
+    var controllers = PostServerConfiguration.createControllers();
     var view = new PostView(System.out);
     var input = new PostInput(new Scanner(System.in), view);
-    new PostConsoleClient(input, view, controller).run();
+    new PostConsoleClient(input, view, controllers.commandController(), controllers.queryController()).run();
   }
 }

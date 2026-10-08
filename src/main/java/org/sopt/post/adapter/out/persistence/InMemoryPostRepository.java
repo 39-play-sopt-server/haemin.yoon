@@ -6,15 +6,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.sopt.post.application.port.out.PostRepositoryPort;
+import org.sopt.post.application.port.out.LoadPostPort;
+import org.sopt.post.application.port.out.SavePostPort;
 import org.sopt.post.domain.Post;
 
 /**
- * 저장소 출력 포트를 구현하며, HashMap으로 게시글의 저장과 ID 접근을 담당합니다.
+ * 조회·변경 출력 포트를 함께 구현하며, 하나의 HashMap으로 게시글 상태를 관리합니다.
+ * 포트를 나누어도 저장소를 나누지 않아 Command와 Query가 동일한 데이터를 사용합니다.
  * ID 조회·교체·삭제는 평균 O(1)이며, 목록 정렬은 별도로 수행합니다.
  * 단일 스레드 콘솔 실행용 메모리 저장소이므로 재시작하면 게시글이 사라집니다.
  */
-public class InMemoryPostRepository implements PostRepositoryPort {
+public class InMemoryPostRepository implements LoadPostPort, SavePostPort {
   private final Map<Long, Post> posts = new HashMap<>();
 
   @Override
