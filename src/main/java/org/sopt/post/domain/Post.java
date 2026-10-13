@@ -1,30 +1,53 @@
 package org.sopt.post.domain;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 
-/**
- * 게시글의 상태와 유효성 규칙을 함께 관리하는 불변 도메인 객체입니다.
- * 모든 필드를 final로 두고 상속을 막아, 조회한 객체를 통해 저장소 상태를 바꿀 수 없게 합니다.
- * 생성·수정 경로 모두 동일한 검증을 거치므로 유효하지 않은 게시글 상태가 만들어지지 않습니다.
- */
-public final class Post {
-  private final long id;
-  private final String title;
-  private final String content;
-  private final Category category;
-  private final String author;
-  private final LocalDateTime createdAt;
+/** 게시글의 JPA 매핑과 생성·수정 시 유효성 규칙을 관리합니다. */
+@Entity
+@Table(name = "posts")
+public class Post {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-  /** 새 게시글의 작성 시각은 실행 환경의 로컬 현재 시각으로 기록하며, ID는 외부 발급 값을 사용합니다. */
-  public Post(long id, String title, String content, Category category, String author) {
-    this(id, title, content, category, author, LocalDateTime.now());
+  @Column(nullable = false, columnDefinition = "text")
+  private String title;
+
+  @Column(nullable = false, columnDefinition = "text")
+  private String content;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 30)
+  private Category category;
+
+  @Column(nullable = false, columnDefinition = "text")
+  private String author;
+
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private LocalDateTime createdAt;
+
+  /** JPA가 DB의 행을 엔티티로 복원할 때 사용합니다. */
+  protected Post() {}
+
+  @PrePersist
+  private void normalizeCreatedAt() {
+    createdAt = createdAt.truncatedTo(ChronoUnit.MICROS);
   }
 
-  /** 생성과 수정이 같은 검증을 사용하고, 수정에서는 원래 작성 시각을 유지하도록 내부 생성자를 둡니다. */
-  private Post(long id, String title, String content, Category category, String author,
-      LocalDateTime createdAt) {
+  /** 새 게시글은 ID 없이 생성하고, 저장 시 DB가 ID를 부여합니다. */
+  public Post(String title, String content, Category category, String author) {
     validateTitle(title);
     validateContent(content);
     if (category == null) {
@@ -33,15 +56,14 @@ public final class Post {
     if (author == null || author.isBlank()) {
       throw new PostException(PostErrorCode.INVALID_AUTHOR);
     }
-    this.id = id;
     this.title = title;
     this.content = content;
     this.category = category;
     this.author = author;
-    this.createdAt = createdAt;
+    this.createdAt = LocalDateTime.now();
   }
 
-  public long getId() {
+  public Long getId() {
     return id;
   }
 
@@ -65,13 +87,12 @@ public final class Post {
     return createdAt;
   }
 
-  /**
-   * 기존 객체를 유지하고, 변경할 제목과 본문을 검증한 새 게시글을 반환합니다.
-   * ID·카테고리·작성자·작성 시각은 유지하며, 반환값을 저장소에 반영해야 실제 수정이 완료됩니다.
-   * 어느 검증에서든 실패하면 새 객체를 반환하지 않으므로 제목만 변경되는 부분 수정도 없습니다.
-   */
-  public Post update(String title, String content) {
-    return new Post(id, title, content, category, author, createdAt);
+  /** 모든 값을 검증한 뒤 관리 중인 엔티티를 변경합니다. 메타데이터는 유지합니다. */
+  public void update(String title, String content) {
+    validateTitle(title);
+    validateContent(content);
+    this.title = title;
+    this.content = content;
   }
 
   /** null과 공백뿐인 제목을 거부하며, 유효한 텍스트의 앞뒤 공백은 변경하지 않습니다. */

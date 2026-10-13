@@ -1,7 +1,7 @@
-package org.sopt.post.adapter.in.api.dto.response;
+package org.sopt.post.adapter.in.web.dto.response;
 
 import java.time.LocalDateTime;
-import org.sopt.post.adapter.in.api.dto.PostCategory;
+import org.sopt.post.adapter.in.web.dto.PostCategory;
 import org.sopt.post.domain.Post;
 
 /**

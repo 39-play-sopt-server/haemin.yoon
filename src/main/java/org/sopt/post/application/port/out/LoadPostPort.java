@@ -12,14 +12,10 @@ import org.sopt.post.domain.Post;
 public interface LoadPostPort {
   /**
    * 조회 시점의 게시글을 ID 오름차순으로 반환하며, 없으면 빈 목록을 반환합니다.
-   * 반환 목록과 불변 Post는 이후 저장소 변경으로 바뀌지 않습니다.
-   * 목록의 수정 가능 여부는 보장하지 않지만, 목록 변경은 저장소에 반영되지 않습니다.
+   * 엔티티는 진행 중인 트랜잭션에서 관리될 수 있으므로 외부 응답은 별도 DTO로 변환합니다.
    */
   List<Post> findAll();
 
-  /** 저장된 게시글이 없으면 true를 반환합니다. */
-  boolean isEmpty();
-
-  /** 해당 ID의 불변 게시글을 반환하며, 없으면 Optional.empty()를 반환합니다. */
+  /** 해당 ID의 게시글을 반환하며, 없으면 Optional.empty()를 반환합니다. */
   Optional<Post> findById(long id);
 }

@@ -1,5 +1,7 @@
 package org.sopt.global.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
 import org.sopt.global.exception.ErrorCode;
 
 /**
@@ -7,9 +9,23 @@ import org.sopt.global.exception.ErrorCode;
  * 클라이언트는 성공 여부·코드·메시지를 동일하게 처리하고, 성공일 때만 결과를 사용합니다.
  * record로 응답 필드의 재할당을 막지만, T 자체의 불변성까지 보장하지는 않습니다.
  */
-public record BaseResponse<T>(boolean success, String code, String message, T data) {
+@JsonInclude(JsonInclude.Include.ALWAYS)
+public record BaseResponse<T>(boolean success, String code, String message, T data,
+    List<ValidationViolation> violations) {
+  /** 기존 성공·일반 실패 응답의 생성 경로는 빈 검증 목록을 사용합니다. */
+  public BaseResponse(boolean success, String code, String message, T data) {
+    this(success, code, message, data, List.of());
+  }
+
   /** 공개 생성자를 직접 사용해도 응답 상태가 모순되지 않도록 공통 규칙을 검증합니다. */
   public BaseResponse {
+    violations = List.copyOf(violations);
+    if (success && !violations.isEmpty()) {
+      throw new IllegalArgumentException("성공 응답에는 검증 오류를 포함할 수 없습니다.");
+    }
+    if (message == null || message.isBlank()) {
+      throw new IllegalArgumentException("응답 메시지는 비어 있을 수 없습니다.");
+    }
     if (code == null || code.isBlank()) {
       throw new IllegalArgumentException("응답 코드는 비어 있을 수 없습니다.");
     }
@@ -29,5 +45,10 @@ public record BaseResponse<T>(boolean success, String code, String message, T da
   /** 실패에는 결과 데이터를 넣지 않아 부분 결과를 정상 결과로 오해하지 않게 합니다. */
   public static <T> BaseResponse<T> failure(ErrorCode errorCode) {
     return new BaseResponse<>(false, errorCode.getCode(), errorCode.getMessage(), null);
+  }
+
+  public static <T> BaseResponse<T> failure(ErrorCode errorCode,
+      List<ValidationViolation> violations) {
+    return new BaseResponse<>(false, errorCode.getCode(), errorCode.getMessage(), null, violations);
   }
 }

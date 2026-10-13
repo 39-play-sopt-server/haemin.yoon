@@ -10,19 +10,17 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.adapter.out.persistence.InMemoryPostRepository;
-import org.sopt.post.adapter.out.id.SequentialPostIdGenerator;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
-import org.sopt.post.application.port.out.SavePostPort;
 import org.sopt.post.domain.Post;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class PostCommandQueryServiceTest {
   private final InMemoryPostRepository repository = new InMemoryPostRepository();
-  private final PostCommandUseCase commands = new PostCommandService(repository, repository, new SequentialPostIdGenerator());
+  private final PostCommandUseCase commands = new PostCommandService(repository, repository);
   private final PostQueryUseCase queries = new PostQueryService(repository);
 
   @ParameterizedTest
@@ -100,7 +98,7 @@ class PostCommandQueryServiceTest {
   void createsAndListsPostsInOrder() {
     commands.createPost("첫 글", "첫 본문", Category.GENERAL, "작성자");
     commands.createPost("둘째 글", "둘째 본문", Category.GENERAL, "작성자");
-    assertTrue(queries.hasPosts());
+    assertFalse(queries.getPosts().isEmpty());
     assertEquals(2, queries.getPosts().size());
     assertEquals("첫 글", queries.getPosts().get(0).getTitle());
     assertEquals("둘째 본문", queries.getPost(2).getContent());
@@ -139,33 +137,19 @@ class PostCommandQueryServiceTest {
   }
 
   @Test
-  void updatingRetrievedPostDoesNotBypassRepositoryUpdate() {
-    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
-    var retrieved = queries.getPost(1);
-
-    retrieved.update("우회 제목", "우회 본문");
-
-    assertEquals("기존 제목", queries.getPost(1).getTitle());
-    assertEquals("기존 본문", queries.getPost(1).getContent());
-  }
-
-  @Test
-  void serviceUpdatePreservesPreviouslyRetrievedPostAndList() {
+  void serviceUpdateChangesTheLoadedEntityInPlace() {
     commands.createPost("기존 제목", "기존 본문", Category.QUESTION, "작성자");
-    var retrieved = queries.getPost(1);
-    var list = queries.getPosts();
+    var loaded = queries.getPost(1);
+    var createdAt = loaded.getCreatedAt();
 
     commands.updatePost(1, "새 제목", "새 본문");
 
-    assertEquals("기존 제목", retrieved.getTitle());
-    assertEquals("기존 본문", list.get(0).getContent());
-    var stored = queries.getPost(1);
-    assertEquals("새 제목", stored.getTitle());
-    assertEquals("새 본문", stored.getContent());
-    assertEquals(retrieved.getId(), stored.getId());
-    assertEquals(retrieved.getCategory(), stored.getCategory());
-    assertEquals(retrieved.getAuthor(), stored.getAuthor());
-    assertEquals(retrieved.getCreatedAt(), stored.getCreatedAt());
+    assertSame(loaded, queries.getPost(1));
+    assertEquals("새 제목", loaded.getTitle());
+    assertEquals("새 본문", loaded.getContent());
+    assertEquals(Category.QUESTION, loaded.getCategory());
+    assertEquals("작성자", loaded.getAuthor());
+    assertEquals(createdAt, loaded.getCreatedAt());
   }
 
   @Test
@@ -182,15 +166,6 @@ class PostCommandQueryServiceTest {
     commands.updatePost(3, "셋째 수정", "수정 본문");
     assertEquals(3L, queries.getPost(3).getId());
     assertEquals("첫 글", queries.getPost(1).getTitle());
-  }
-
-  @Test
-  void creationUsesInjectedIdGenerator() {
-    var customRepository = new InMemoryPostRepository();
-    PostCommandUseCase custom = new PostCommandService(customRepository, customRepository, () -> 5000000000L);
-    PostQueryUseCase customQueries = new PostQueryService(customRepository);
-    custom.createPost("제목", "본문", Category.GENERAL, "작성자");
-    assertEquals(5000000000L, customQueries.getPost(5000000000L).getId());
   }
 
   @Test
@@ -212,24 +187,7 @@ class PostCommandQueryServiceTest {
   }
 
   @Test
-  void rejectedReplacementDoesNotChangeStoredPost() {
-    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
-    SavePostPort rejectedWrites = new SavePostPort() {
-      public void save(Post post) { repository.save(post); }
-      public boolean update(Post post) { return false; }
-      public boolean deleteById(long id) { return repository.deleteById(id); }
-    };
-    var command = new PostCommandService(repository, rejectedWrites, new SequentialPostIdGenerator());
-
-    assertNotFound(() -> command.updatePost(1, "새 제목", "새 본문"));
-
-    assertEquals("기존 제목", queries.getPost(1).getTitle());
-    assertEquals("기존 본문", queries.getPost(1).getContent());
-  }
-
-  @Test
   void emptyRepositoryReturnsNoPost() {
-    assertFalse(queries.hasPosts());
     assertTrue(queries.getPosts().isEmpty());
     assertNotFound(() -> queries.getPost(1));
     assertNotFound(() -> commands.updatePost(1, "제목", "본문"));
