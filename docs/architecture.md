@@ -1,276 +1,248 @@
 # 아키텍처와 설계 이유
 
-이 문서는 현재 구현의 역할, 의존성 방향, 데이터 흐름과 설계 선택 이유를 설명합니다.
-과제 요구사항과 구현 위치, 실행·검증 방법은 [과제 요구사항 체크리스트](assignment-checklist.md)를 참고하세요.
+Spring Boot가 HTTP 서버를 시작하고 컴포넌트 스캔과 생성자 주입으로 게시글 객체를 연결합니다.
+웹 클라이언트의 요청을 Controller → Service → Persistence Adapter → PostgreSQL 순서로 처리합니다.
+Command/Query 서비스와 포트로 책임을 분리하고, 엔티티의 변경 감지와 응답 DTO 변환을 사용합니다.
+실행 방법과 요청 예시는 [서버 실행 및 검증](#서버-실행-및-검증)을 참고하세요.
 
-콘솔 클라이언트와 서버는 같은 JVM에서 실행하며, 클라이언트가 서버 컨트롤러를 직접 호출합니다.
-이 과제의 서버·클라이언트 분리는 역할과 코드 의존성의 분리이며 실제 네트워크 통신은 아닙니다.
+## 어노테이션과 객체 연결
 
-## 패키지 구조
+| 클래스 | 어노테이션 | 책임 |
+| --- | --- | --- |
+| `Main` | `@SpringBootApplication` | 서버 시작과 org.sopt 하위 컴포넌트 스캔 |
+| `PostCommandController` | `@RestController`, `@RequestMapping` | 작성·수정·삭제 HTTP 요청 |
+| `PostQueryController` | `@RestController`, `@RequestMapping` | 목록·단건 조회 HTTP 요청 |
+| `PostCommandService` | `@Service`, `@Transactional` | 생성·수정·삭제의 비즈니스 트랜잭션 |
+| `PostQueryService` | `@Service`, `@Transactional(readOnly = true)` | 읽기 전용 조회 트랜잭션 |
+| `PostPersistenceAdapter` | `@Component`, `@RequiredArgsConstructor` | LoadPostPort와 SavePostPort의 공유 JPA 구현 |
+| `GlobalExceptionHandler` | `@RestControllerAdvice`, `@ExceptionHandler` | 도메인·MVC 예외를 공통 HTTP 실패 응답으로 변환 |
+| `ApiErrorController` | `@RestController` | 서블릿 오류 디스패치를 공통 JSON 응답으로 변환 |
 
-```text
-org.sopt
-├── Main
-├── client/console
-│   ├── PostConsoleClient
-│   ├── PostInput
-│   ├── PostView
-│   └── ConsoleInputClosedException
-├── global
-│   ├── response/BaseResponse
-│   └── exception
-│       ├── ErrorCode
-│       ├── BaseException
-│       ├── GlobalErrorCode
-│       └── GlobalExceptionHandler
-└── post
-    ├── config/PostServerConfiguration
-    ├── domain
-    │   ├── Post
-    │   ├── Category
-    │   └── exception
-    │       ├── PostException
-    │       └── PostErrorCode
-    ├── application
-    │   ├── port/in
-    │   │   ├── command/PostCommandUseCase
-    │   │   └── query/PostQueryUseCase
-    │   ├── port/out
-    │   │   ├── LoadPostPort
-    │   │   ├── SavePostPort
-    │   │   └── PostIdGeneratorPort
-    │   └── service
-    │       ├── command/PostCommandService
-    │       └── query/PostQueryService
-    └── adapter
-        ├── in/api
-        │   ├── PostCommandController
-        │   ├── PostQueryController
-        │   └── dto
-        │       ├── PostCategory
-        │       ├── request
-        │       │   ├── CreatePostRequest
-        │       │   └── UpdatePostRequest
-        │       └── response/PostResponse
-        └── out
-            ├── persistence/InMemoryPostRepository
-            └── id/SequentialPostIdGenerator
-```
-
-## 역할과 데이터 흐름
-
-| 구성 요소 | 책임 |
-| --- | --- |
-| `Main` | 서버 구성 팩토리 호출과 콘솔 클라이언트 시작 |
-| `PostConsoleClient` | 메뉴 반복, 요청 DTO 구성, 공통 응답 처리 |
-| `PostInput` | 입력·숫자 변환·카테고리 선택 및 재입력 |
-| `PostView` | 주입받은 PrintStream으로 메뉴·게시글·메시지 출력 |
-| `PostCommandController` | 생성·수정·삭제 요청 확인, DTO 변환, Command 호출과 공통 응답 |
-| `PostQueryController` | 조회 요청 전달, 결과 DTO 변환과 공통 응답 |
-| `GlobalExceptionHandler` | 서버 작업의 성공·실패를 BaseResponse로 변환 |
-| `PostCommandUseCase` / `PostCommandService` | 게시글 상태 변경의 계약과 처리 흐름 |
-| `PostQueryUseCase` / `PostQueryService` | 게시글 조회의 계약과 처리 흐름 |
-| `Post` | 불변 게시글 상태와 생성·수정 검증 |
-| `LoadPostPort` | 저장소 조회 계약 |
-| `SavePostPort` | 저장소 생성·교체·삭제 계약 |
-| `InMemoryPostRepository` | HashMap 관리 |
-| `PostIdGeneratorPort` / `SequentialPostIdGenerator` | ID 발급 계약과 구현 |
-| `PostServerConfiguration` | 서버 객체의 생성과 의존성 연결 |
+PostPersistenceAdapter는 Lombok의 @RequiredArgsConstructor가 final 필드의 생성자를 생성합니다.
+생성자가 하나인 컴포넌트는 생성자로 의존성을 주입받습니다.
+서비스는 구체 저장소 대신 포트 인터페이스에 의존합니다. Spring이 같은 저장소 Bean을
+LoadPostPort와 SavePostPort에 주입하므로 Command의 변경 결과를 Query에서 조회할 수 있습니다.
+포트 인터페이스, 도메인, DTO는 Spring Bean으로 등록하지 않습니다.
+운영 코드에는 수동 객체 조립 팩토리가 없습니다. 컨트롤러 단위 테스트는 테스트 내부에서 독립된 저장소와 서비스를 구성합니다.
 
 ```mermaid
 flowchart LR
-    Client[콘솔 클라이언트] --> CommandController[PostCommandController]
-    Client --> QueryController[PostQueryController]
-    CommandController --> CommandPort[PostCommandUseCase]
-    QueryController --> QueryPort[PostQueryUseCase]
-    CommandService[PostCommandService] -. 구현 .-> CommandPort
-    QueryService[PostQueryService] -. 구현 .-> QueryPort
-    CommandService --> Load[LoadPostPort]
-    CommandService --> Save[SavePostPort]
-    CommandService --> Id[PostIdGeneratorPort]
-    QueryService --> Load
-    Repository[공유 InMemoryPostRepository] -. 구현 .-> Load
-    Repository -. 구현 .-> Save
-    Generator[SequentialPostIdGenerator] -. 구현 .-> Id
+    HTTP[HTTP 클라이언트] --> MVC[Spring MVC]
+    MVC --> CC[PostCommandController]
+    MVC --> QC[PostQueryController]
+    CC --> CS[PostCommandUseCase / PostCommandService]
+    QC --> QS[PostQueryUseCase / PostQueryService]
+    CS --> Load[LoadPostPort]
+    CS --> Save[SavePostPort]
+    QS --> Load
+    Load --> Repo[공유 PostPersistenceAdapter]
+    Save --> Repo
+    Repo --> DB[(PostgreSQL)]
 ```
 
-클라이언트는 서버 도메인, 유스케이스, 저장소를 직접 사용하지 않습니다.
-서버는 콘솔 입력·출력 객체를 참조하지 않습니다.
-Main의 서버 구성 팩토리 호출은 같은 프로세스에서 두 역할을 실행하기 위한 연결입니다.
-PostServerConfiguration.createControllers()는 공유 저장소에 연결된 두 컨트롤러를 한 번에 생성합니다.
-Controllers record는 객체 조립 결과를 묶는 값이며, 게시글 API를 다시 합치는 중간 계층은 아닙니다.
-Main은 이 쌍을 풀어 콘솔에 두 컨트롤러를 각각 주입합니다.
+## HTTP 요청과 공통 응답
 
-Request·Response DTO는 서버 입력 어댑터 아래에 있습니다. 유스케이스에는 개별 인자를
-전달하므로 서버 application 계층은 전송 DTO를 알지 못합니다.
-`PostResponse`는 record 스냅샷이고 결과 목록은 수정할 수 없습니다.
-클라이언트가 이전 결과를 보관해도 이후 서버 수정·삭제로 바뀌지 않습니다.
-게시글 응답 변환은 `PostResponse.from(Post)`에, 카테고리 변환은
-`PostCategory.toDomain()`과 `PostCategory.from(Category)`에 둡니다.
-컨트롤러는 이 메서드를 호출하며, 두 Enum의 대응 관계는 명시적인 switch로 정의합니다.
-
-## 공통 응답과 전역 예외 처리
-
-Command·Query 컨트롤러의 모든 기능 메서드는 `BaseResponse<T>`를 반환합니다.
-
-| 필드 | 의미 |
-| --- | --- |
-| `success` | 처리 성공 여부 |
-| `code` | 성공 시 SUCCESS, 실패 시 오류 코드 |
-| `message` | 사용자 안내 |
-| `data` | 조회 결과. 실패 또는 생성·수정·삭제 응답에서는 null |
-
-BaseResponse 생성자는 코드가 null 또는 공백인 응답을 거부합니다.
-성공 응답은 SUCCESS 코드, 실패 응답은 그 외의 코드만 허용하며 실패 데이터는 null이어야 합니다.
-생성·수정·삭제의 성공 응답은 데이터가 없어도 유효합니다.
-
-예를 들어 없는 게시글을 조회하면 다음 값을 받습니다.
-
-```text
-success = false
-code = POST_NOT_FOUND
-message = 존재하지 않는 게시글입니다.
-data = null
-```
-
-`PostException`은 공통 `BaseException`을 상속하고, `PostErrorCode`는 `ErrorCode`를 구현합니다.
-서비스와 도메인은 예외를 발생시키며 서버 컨트롤러 경계에서 `GlobalExceptionHandler`가
-실패 응답으로 변환합니다. 클라이언트는 서버 예외를 직접 catch하지 않고 응답을 표시합니다.
-콘솔 입력 종료는 클라이언트 전용 ConsoleInputClosedException으로 구분해 정상 종료합니다.
-작성·수정 입력 도중 EOF가 발생하면 미완성 요청은 서버로 보내지 않습니다.
-현재 전역 핸들러는 서버 메서드가 사용하는 실행 래퍼이며 Spring의 자동 예외 처리 기능은 아닙니다.
-
-| 오류 코드 | 의미 |
-| --- | --- |
-| POST_NOT_FOUND | 조회·수정·삭제 대상이 없음 |
-| INVALID_TITLE | 생성·수정 제목이 null 또는 공백뿐임 |
-| INVALID_CONTENT | 생성·수정 본문이 null 또는 공백뿐임 |
-| INVALID_CATEGORY | 생성 카테고리가 null임 |
-| INVALID_AUTHOR | 생성 작성자가 null 또는 공백뿐임 |
-| INVALID_REQUEST | 요청 객체가 null임 |
-| INTERNAL_SERVER_ERROR | 예상하지 못한 서버 실행 오류 |
-
-예상하지 못한 RuntimeException은 서버 Logger에 기록하고 일반 오류 메시지만 응답합니다.
-Error는 잡지 않습니다. 빈 목록은 정상 상태이며 번호 입력 없이 안내하는 기존 콘솔 흐름을 유지합니다.
-없는 수정 ID는 새 제목·본문을 입력받기 전에 확인합니다.
-
-## 게시글 정보와 저장소
-
-제목·본문·작성자는 생성 시 null, 빈 문자열, 공백뿐인 값을 거부합니다.
-`isBlank()`로 탭·줄바꿈 등도 검사하며 유효한 텍스트의 앞뒤 공백은 유지합니다.
-`Post`는 모든 필드가 final인 불변 객체입니다. `update(title, content)`는 같은 제목·본문
-검증을 적용한 새 객체를 반환하며 원본은 변경하지 않습니다. 서비스가 반환된 객체를
-저장소에 반영하므로, 조회한 객체로 update를 호출하는 것만으로 저장소가 바뀌지 않습니다.
-검증 실패 시 저장소는 그대로 유지되고, 이전에 조회한 객체도 이후 수정의 영향을 받지 않습니다.
-
-카테고리는 GENERAL(일반), QUESTION(질문), INFORMATION(정보) 중 필수 선택입니다.
-작성 시각은 생성자에서 LocalDateTime.now()로 기록하며 실행 환경의 로컬 시간을 사용합니다.
-카테고리·작성자·작성 시각은 제목·본문 수정 후에도 유지됩니다.
-
-작성 입력 순서는 제목 → 본문 → 카테고리 번호 → 작성자입니다.
-목록에는 ID·카테고리·작성자를 표시하고 상세에는 작성 시각도 표시합니다.
-조회·수정·삭제에는 목록 위치가 아닌 실제 long ID를 입력합니다.
-
-`HashMap<Long, Post>`로 ID 조회·수정·삭제를 평균 O(1)에 수행합니다.
-목록은 복사 후 ID 오름차순으로 정렬하므로 O(n log n)입니다.
-`hasPosts()`는 저장소 isEmpty()를 사용해 전체 목록 정렬을 피합니다.
-ID 1, 2, 3 중 2를 삭제하면 1, 3이 남고 다음 발급 ID는 4입니다.
-생성 검증 실패에도 발급된 ID는 소비될 수 있습니다. 중복 저장은 기존 글을 덮어쓰지 않고 거부합니다.
-메모리 저장소와 순차 ID 생성기는 단일 스레드 콘솔 실행용이며 재시작하면 초기화됩니다.
-
-## 헥사고날 아키텍처를 선택한 이유
-
-게시글 규칙과 처리 흐름을 콘솔 입출력 및 저장 방식에서 분리하기 위해 헥사고날 아키텍처를 적용했습니다.
-도메인은 게시글의 유효한 상태를 관리하고, 애플리케이션은 필요한 기능을 포트로 정의합니다.
-어댑터는 그 포트를 외부 요청이나 실제 저장 방식과 연결합니다.
-
-| 용어 | 현재 코드에서의 의미 |
-| --- | --- |
-| domain | 게시글 상태와 유효성 규칙 |
-| application | 게시글 기능의 계약과 처리 흐름 |
-| port | 애플리케이션을 호출하거나 애플리케이션이 다른 기능을 호출하기 위한 인터페이스 |
-| adapter | 외부 요청을 입력 포트에 연결하거나 출력 포트를 실제 기능으로 구현하는 클래스 |
-| in | 외부에서 애플리케이션 기능을 호출하는 방향 |
-| out | 애플리케이션에서 저장소·ID 발급 등의 기능을 호출하는 방향 |
-
-in·out은 요청 데이터와 응답 데이터가 이동하는 방향을 뜻하지 않습니다.
-PostCommandController는 PostCommandUseCase를, PostQueryController는 PostQueryUseCase를 호출합니다.
-PostCommandService는 LoadPostPort·SavePostPort·PostIdGeneratorPort를 사용하고,
-PostQueryService는 LoadPostPort만 사용합니다.
-저장소와 ID 발급 어댑터가 애플리케이션에 정의된 출력 포트를 구현하므로 서비스는 구체 구현에 의존하지 않습니다.
-PostServerConfiguration에서 구현체를 생성해 생성자로 주입합니다.
-
-## 설계 선택과 변경 범위
-
-### Command와 Query를 분리한 이유
-
-기존에는 하나의 PostUseCase·PostService·PostController가 조회와 상태 변경을 모두 담당했습니다.
-규모가 커지면 변경에는 권한·검증·트랜잭션 요구가, 조회에는 검색·필터·정렬·페이지네이션 요구가 늘어납니다.
-이번에는 이 두 책임이 독립적으로 확장되는 구조를 학습하기 위해 호출 계약부터 분리했습니다.
-
-| 구분 | Command | Query |
+| 요청 | 매핑 | 성공 상태 |
 | --- | --- | --- |
-| 목적 | 게시글 상태 변경 | 상태를 변경하지 않고 정보 조회 |
-| 기능 | createPost, updatePost, deletePost | getPosts, getPost, hasPosts |
-| 입력 포트 | PostCommandUseCase | PostQueryUseCase |
-| 서비스 | PostCommandService | PostQueryService |
-| 컨트롤러 | PostCommandController | PostQueryController |
-| 저장소 접근 | LoadPostPort + SavePostPort | LoadPostPort |
-| ID 발급 | 사용 | 사용하지 않음 |
+| `POST /posts` | `@PostMapping` | 201 |
+| `GET /posts` | `@GetMapping` | 200 |
+| `GET /posts/{id}` | `@GetMapping("/{id}")` | 200 |
+| `PUT /posts/{id}` | `@PutMapping("/{id}")` | 200 |
+| `DELETE /posts/{id}` | `@DeleteMapping("/{id}")` | 200 |
 
-**얻는 효과:** 조회 서비스는 조회 계약만 주입받으므로 그 의존성을 통해 저장·수정·삭제를 호출할 수 없습니다.
-조회와 변경의 메서드 및 의존성이 구분되어, 기능 추가와 리뷰에서 어느 흐름을 바꾸는지 더 명확해집니다.
-테스트도 각 흐름을 구분해 구성할 수 있습니다. 두 흐름의 상호 작용은 같은 저장소를 사용하는 통합 시나리오로 검증합니다.
+JSON 본문은 `@RequestBody`로 요청 record에 바인딩한 뒤 생성·수정 요청에 `@Valid`를 적용합니다. 경로 ID는
+`@PathVariable("id")`로 받습니다. 수정은 제목·본문을 모두 전달하는 기존 계약을 따릅니다.
+생성·수정·삭제는 성공 메시지와 null 데이터를 반환합니다. 삭제도 응답 본문을 유지하므로 200입니다.
 
-Command도 조회할 수 있습니다. updatePost는 저장된 게시글을 읽고 검증한 새 Post로 교체해야 합니다.
-그 조회는 변경 작업의 내부 단계이므로 Query 서비스를 호출하지 않고 LoadPostPort를 사용합니다.
-이는 조회 API가 변경 책임을 갖는 것과 다릅니다.
+`BaseResponse<T>`는 기존 `success`, `code`, `message`, `data`에 `violations` 배열을 추가합니다.
+성공·일반 실패에는 빈 배열을, 입력 검증 실패에는 필드별 오류 목록을 반환합니다.
+성공 코드는 SUCCESS이며 실패 응답의 data는 null입니다.
+컨트롤러는 성공 응답만 만들고 예외를 Spring MVC로 전파합니다.
 
-**비용과 적용 범위:** 클래스와 인터페이스가 늘어나 단순 CRUD에서는 탐색할 파일이 많아집니다.
-현재는 학습 목적의 기본 Command/Query 분리이며, 입력 포트는 각 하나로 묶고 기존 DTO·개별 인자를 유지합니다.
-기능별 UseCase와 내부 Command·Info DTO는 추가하지 않습니다.
+성공 응답은 `BaseResponse.success(data, message)`를 사용합니다. 별도의 SuccessCode Enum은 도입하지 않았으며,
+생성의 HTTP 201은 컨트롤러의 `@ResponseStatus`, 나머지 성공의 HTTP 200은 MVC 기본 상태로 결정합니다.
+현재 BaseResponse 생성자는 성공 코드를 SUCCESS로 제한하므로 도메인별 성공 코드를 바로 전달할 수 없습니다.
 
-Load/Save 계약을 분리해도 메모리 저장소는 하나의 HashMap을 공유합니다. Command의 결과는 Query에서 즉시 조회됩니다.
-조회용 DB·변경용 DB, 별도 조회 모델, 이벤트 동기화는 도입하지 않았습니다.
-현재는 Spring을 사용하지 않으므로 트랜잭션이나 readOnly 설정도 없습니다.
+| 실패 | HTTP 상태 | 응답 코드 |
+| --- | --- | --- |
+| HTTP 필수값 검증 실패 | 400 | VALIDATION_FAILED + violations |
+| 도메인 검증 실패 | 400 | INVALID_TITLE, INVALID_CONTENT, INVALID_CATEGORY, INVALID_AUTHOR |
+| 빈 본문·잘못된 JSON·알 수 없는 카테고리·잘못된 ID 형식 | 400 | INVALID_REQUEST |
+| 없는 게시글 조회·수정·삭제 | 404 | POST_NOT_FOUND |
+| 없는 경로·정적 리소스 | 404 | RESOURCE_NOT_FOUND |
+| 지원하지 않는 HTTP 메서드 | 405 | METHOD_NOT_ALLOWED |
+| 지원하지 않는 Accept | 406 | NOT_ACCEPTABLE |
+| 지원하지 않는 Content-Type | 415 | UNSUPPORTED_MEDIA_TYPE |
+| 예상하지 못한 Exception (checked 포함) | 500 | INTERNAL_SERVER_ERROR |
 
+### 응답 계약과 확장 방법
 
-### 불변 게시글
+`BaseResponse`는 불변 record이며 성공 여부·코드 조합, 실패 데이터, 빈 코드·메시지를 검증합니다.
+`@JsonInclude(ALWAYS)`로 전역 Jackson의 null 생략 설정과 관계없이 다섯 필드를 유지합니다.
+검증 목록은 방어적 복사로 불변 스냅샷을 보장하고 성공 응답에 오류 목록이 들어가는 것을 거부합니다.
+클라이언트는 사람이 읽는 message 대신 안정적인 code로 오류를 구분합니다.
+Enum 상수 이름과 공개 코드 문자열을 분리하여 내부 이름 변경이 API 계약 변경으로 이어지지 않게 합니다.
 
-저장소가 변경 가능한 Post를 공유하면 조회한 객체를 수정하는 것만으로 저장소의 값이 바뀔 수 있습니다.
-이를 막기 위해 Post를 불변 객체로 두고, update는 검증한 새 객체를 반환하도록 했습니다.
-PostCommandService가 그 객체를 저장소에 반영하며, 이전 객체와 조회 결과는 유지됩니다.
-수정마다 객체를 생성하지만 저장소에서는 같은 ID의 값을 교체하므로 게시글 수가 늘어나지는 않습니다.
+새 도메인의 오류 Enum은 `ErrorCode`를 구현하고 HTTP 상태·공개 코드·안전한 메시지를 선언합니다.
+해당 오류를 `BaseException` 또는 그 하위 예외에 담아 던지면 전역 핸들러 수정 없이 처리됩니다.
+현재는 작은 서버의 공통 오류 계약에서 Spring의 `HttpStatus`를 사용합니다. 도메인 오류도 이 계약을
+참조하므로 HTTP/Spring 의존이 있습니다. HTTP 외 어댑터가 필요해지면 오류 분류와 웹 상태 매핑을 분리할 수 있습니다.
+도메인별 코드 비교나 등록용 switch를 전역 핸들러에 추가하지 않습니다.
 
-### DTO 안의 변환 메서드
+`GlobalExceptionHandler`는 `ResponseEntityExceptionHandler`를 확장합니다.
+Spring이 분류하는 바인딩·검증·변환·라우팅 예외의 상태와 헤더를 보존합니다.
+요청 본문 검증 실패는 `handleMethodArgumentNotValid`에서 오류 목록이 있는 BaseResponse를 만들고,
+최종 응답 생성 단계에서는 이 본문을 유지합니다. 나머지 MVC 오류 본문은 공통 실패 응답으로 교체합니다.
+405의 Allow, 429의 Retry-After 같은 헤더를 유지합니다.
+406을 포함한 오류 응답은 Accept와 관계없이 `application/json`으로 반환하는 API 정책입니다.
+새 표준 HTTP 오류가 추가돼도 상태는 보존하며, 미등록 4xx는 INVALID_REQUEST,
+미등록 5xx는 INTERNAL_SERVER_ERROR의 안전한 메시지를 사용합니다.
 
-변환 규칙을 결과 타입과 함께 볼 수 있도록 PostResponse.from(Post)와 PostCategory의 변환 메서드를 사용합니다.
-입력 어댑터의 DTO가 도메인을 참조하는 방향은 허용하며, 도메인과 애플리케이션은 외부 DTO를 참조하지 않습니다.
-요청은 현재 유스케이스의 개별 인자로 전달하므로 별도의 Command·Info나 Mapper는 도입하지 않았습니다.
+`ApiErrorController`는 필터 예외나 `sendError()`로 발생한 서블릿 ERROR 디스패치를 처리합니다.
+Boot 기본 HTML/Map 대신 같은 응답 객체를 사용하고 서버의 오류 상태 속성만 읽습니다.
+원본 오류 메시지·스택·쿼리·요청 본문은 응답에 포함하지 않습니다.
+예상하지 못한 예외와 명시적인 5xx는 SLF4J로 원인을 기록하고, 일반 4xx는 오류 스택을 남기지 않습니다.
 
-### 두 카테고리 Enum
+### HTTP 입력 검증
 
-Category는 도메인의 분류이고 PostCategory는 외부 요청·응답에서 사용하는 분류입니다.
-이 분리는 외부 형식을 도메인에 직접 묶지 않기 위한 선택이며, 두 Enum을 동기화해야 하는 비용도 있습니다.
-명시적인 switch로 대응 관계를 표현하고, 값이 추가되면 누락된 매핑을 컴파일 단계에서 확인합니다.
-도메인의 한글 명칭은 분류의 의미를 설명하기 위해 유지합니다.
+`spring-boot-starter-validation`과 요청 DTO의 `@NotBlank`·`@NotNull`, 생성·수정 컨트롤러의 `@Valid`로
+HTTP 입력의 필수값을 검사합니다. 여러 필드 오류를 모아 `VALIDATION_FAILED`로 반환하며 유스케이스 호출을 막습니다.
+생성 요청은 title·content·author에 NotBlank, category에 NotNull을 적용하고, 수정 요청은 title·content에 NotBlank를 적용합니다.
+검증은 컨트롤러 호출 전에 실행됩니다. 따라서 없는 게시글을 수정하더라도 본문이 유효하지 않으면
+게시글 조회의 404보다 입력 검증의 400을 먼저 반환합니다. 빈 JSON 객체 `{}`도 필수값 검증 대상이며,
+빈 본문·JSON의 `null`·깨진 JSON은 역직렬화 또는 필수 본문 처리 단계의 INVALID_REQUEST입니다.
+도메인의 검증도 유지해 HTTP를 거치지 않는 호출에서도 잘못된 게시글 생성·수정을 거부합니다.
+길이 제한·내용 정규화·새 ID 제약 등 기존 요구에 없는 정책은 추가하지 않습니다.
 
-### 조회 결과와 목록 계약
+`RequestValidationErrors`는 BindingResult를 불변 `ValidationViolation(field, code, message)` 목록으로 변환합니다.
+NotBlank·NotNull은 공개 코드 REQUIRED로 매핑합니다. 미등록 제약은 INVALID_VALUE와 안전한 공통 문구를 사용합니다.
+필드 오류와 객체 전체 오류를 모두 포함하고, 객체 전체 오류의 field는 null입니다.
+동일한 공개 오류는 중복 제거하고 field(null 우선)·code·message 순으로 정렬합니다.
+클라이언트는 오류 발생 순서에 의존하지 않고 field/code를 사용해야 합니다.
+검증 메시지로 오류 Enum을 역조회하거나 클래스패스를 스캔하지 않습니다.
+원본 메시지·거부된 값·객체명·제약 구현명을 응답에 복사하지 않아 검증 엔진의 메시지에도 의존하지 않습니다.
+새 제약에 구체 안내가 필요하면 이 변환기에 명시적인 공개 코드와 메시지를 추가합니다.
 
-LoadPostPort.findAll은 ID 오름차순의 독립된 목록 스냅샷을 반환합니다.
-반환 목록의 수정 가능 여부는 포트 계약에서 보장하지 않지만, 목록 변경은 저장소에 반영되지 않습니다.
-현재 저장소는 수정 가능한 복사본을 반환하고 서버 컨트롤러는 수정 불가능한 DTO 목록을 반환합니다.
-단건 콘솔 조회는 대상 선택에서 받은 PostResponse를 재사용해 같은 게시글을 다시 요청하지 않습니다.
-수정·삭제 전 대상 확인은 존재하지 않는 게시글에 대해 추가 입력을 받지 않는 콘솔 흐름을 유지하기 위한 선택입니다.
+HTTP 필수값 검증 오류의 최상위 코드는 기존 INVALID_TITLE 등에서 VALIDATION_FAILED로 변경됩니다.
+PostException의 기존 코드·메시지는 유지하므로 HTTP 외 도메인 검증이나 비즈니스 실패를 구분할 수 있습니다.
+본문 역직렬화 실패(잘못된 JSON·잘못된 enum 값·빈 본문)는 검증 단계에 도달하지 못하므로
+INVALID_REQUEST와 빈 목록을 반환합니다. 현재 적용 범위는 요청 본문이며, 경로 ID 형식 오류도 기존 처리를 유지합니다.
 
-### 시간과 실행 환경
+현재 JSON CRUD API는 컨트롤러 반환형에 `BaseResponse<T>`를 명시합니다.
+자동 래핑은 이중 래핑 및 파일·스트림 응답과의 충돌을 피하기 위해 사용하지 않습니다.
+새 JSON API도 같은 반환형과 성공 팩터리를 사용해야 합니다.
+HEAD·자동 OPTIONS·204처럼 본문이 없거나 프로토콜 차원에서 처리하는 응답에는 봉투를 강제하지 않습니다.
+이미 전송된 응답, 클라이언트 연결 종료, 서블릿 컨테이너에 도달하기 전 프록시 오류는
+애플리케이션에서 새 JSON 본문으로 변환할 수 없습니다.
+향후 Spring Security를 도입해 응답을 직접 작성한다면 별도 인증·인가 핸들러에도 이 계약을 적용해야 합니다.
 
-작성 시각은 Post 생성자가 LocalDateTime.now()로 기록합니다. 수정 객체에서는 원래 시각을 유지합니다.
-Clock 주입은 현재 적용하지 않아 작성 시각 테스트는 실제 시스템 시간을 사용합니다.
-메모리 저장소와 순차 ID 발급은 단일 스레드 실행을 전제로 하며 영속 저장이나 동시 요청 처리는 제공하지 않습니다.
+### 구현 상태와 논의한 확장안
 
-### HTTP 서버로 전환할 때
+| 항목 | 현재 상태 |
+| --- | --- |
+| 응답 필드 | success·code·message·data·violations의 다섯 필드 |
+| 성공 코드 | SUCCESS 고정, SuccessCode Enum 없음 |
+| 오류 표현 | 공통 응답 객체 사용, 중첩 error 객체나 RFC 9457 ProblemDetail을 외부 응답으로 사용하지 않음 |
+| 요청 추적 식별자 | requestId·traceId 생성 및 응답·로그 연동 미구현 |
+| 입력 검증 | 생성·수정 요청 본문의 필수값 검증과 도메인 검증 |
+| 객체 전체 검증 | 오류 변환과 테스트는 지원하지만 현재 DTO에 객체 전체 제약은 없음 |
+| 인증·인가 | Spring Security 의존성·인증 기능·전용 실패 핸들러 미구현 |
 
-웹·앱 클라이언트를 도입하면 콘솔 클라이언트를 대체하고 HTTP 요청을 받는 입력 어댑터를 연결할 수 있습니다.
-현재 게시글 규칙과 유스케이스를 재사용할 수 있지만, 라우팅·직렬화·HTTP 상태 코드·프레임워크 예외 처리 연결은
-추가 구현이 필요합니다. 동시 요청이나 데이터베이스를 도입할 때는 저장소·ID 발급·트랜잭션도 함께 검토해야 합니다.
+GlobalErrorCode의 UNAUTHORIZED·FORBIDDEN·TOO_MANY_REQUESTS 등은 해당 상태의 공통 오류 표현입니다.
+코드가 선언되어 있다는 것만으로 인증·인가나 요청 횟수 제한 기능이 제공되지는 않습니다.
+
+## 도메인과 저장소
+
+`Post`는 `@Entity`, `@Table(name = "posts")`로 직접 매핑한 JPA 엔티티입니다.
+JPA의 protected 기본 생성자를 제공하며 필드를 final로 선언하지 않습니다.
+Command 서비스는 조회와 수정·삭제를 하나의 `@Transactional` 안에서 수행합니다.
+수정은 조회한 관리 엔티티의 `Post.update(title, content)`를 호출하고, 커밋 시 JPA 변경 감지로 DB에 반영합니다.
+Post.update는 제목·본문을 모두 검증한 뒤 필드를 바꾸므로 검증 실패 시 부분 변경이 발생하지 않습니다.
+작성 시각·카테고리·작성자는 수정 후에도 유지됩니다.
+조회한 Post 엔티티는 불변 스냅샷이 아니며, 서비스 트랜잭션 안에서는 관리되는 객체입니다.
+`PostResponse.from(Post)`와 `PostCategory`의 변환 메서드를 통해 DTO와 도메인을 연결합니다.
+웹 어댑터가 만든 조회 응답 DTO와 목록은 엔티티와 분리되어 이후 변경·삭제로 바뀌지 않습니다.
+
+`Post`가 테이블 매핑과 유효성 검증을 함께 담당하며, 별도 엔티티 변환은 없습니다. 카테고리는 문자열, 제목·본문·작성자는 TEXT로 저장합니다.
+작성 시각은 기존 LocalDateTime 의미를 유지하며 DB의 마이크로초 정밀도에 맞춥니다.
+
+`PostPersistenceAdapter`가 `PostRepository`를 사용합니다.
+신규 Post의 ID는 null입니다. 신규 저장은 ID가 없는 객체만 허용하고 Spring Data JPA의 save를 호출합니다.
+`@GeneratedValue(strategy = GenerationType.IDENTITY)`로 INSERT 시 DB가 ID를 생성합니다.
+이미 ID가 있는 객체를 신규 저장 경로에 전달하면 거부해 기존 행을 덮어쓰지 않습니다.
+수정·삭제는 서비스에서 대상을 조회하고, 없으면 POST_NOT_FOUND를 던집니다.
+수정에는 별도 save 호출·수정 출력 포트·벌크 UPDATE 쿼리를 사용하지 않습니다.
+삭제는 조회한 엔티티를 SavePostPort.delete에 전달하고 어댑터가 JpaRepository.delete를 호출합니다.
+애플리케이션 트랜잭션 경계는 서비스에 두며 Query 서비스는 읽기 전용입니다.
+저장소 호출은 진행 중인 서비스 트랜잭션에 참여합니다. 서비스 밖에서 Repository의 save/delete를 직접
+호출하면 Spring Data의 해당 메서드 트랜잭션이 적용되지만, 이것이 조회·수정 전체를 대신하지는 않습니다.
+
+ID는 PostgreSQL identity 컬럼이 자동 생성해 서버 재시작이나 다중 서버 실행에도
+중복되지 않습니다. 별도의 ID 발급 포트·구현체·nextval 호출은 없습니다. 실패나 롤백 시에도 시퀀스 값이 소비될 수 있어 연속 번호는 보장하지 않습니다.
+트랜잭션은 작업의 커밋·롤백을 묶지만 동시 수정 충돌을 방지하지는 않습니다.
+현재 @Version이나 명시적인 잠금은 없으므로 동시 수정 시 이전 변경을 덮어쓸 수 있습니다.
+POST_NOT_FOUND는 조회 시점의 부재를 의미하며, 조회 이후 동시 삭제의 결과를 이전처럼 행 수로 판별하지 않습니다.
+
+`Post`의 어노테이션과 개발용 JPA ddl-auto=update로 Hibernate가 테이블을 생성·갱신합니다.
+테스트는 ddl-auto=create-drop을 사용합니다. 스키마 SQL 스크립트는 사용하지 않습니다.
+비밀번호는 환경변수로 설정합니다.
+메모리 저장소는 src/test 아래에서 단위 테스트 대역으로만 사용합니다.
+대역은 같은 엔티티 참조를 반환해 변경 결과를 관찰하며, JPA 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트로 검증합니다.
+엔티티의 ID·필드 복원은 JPA에 맡기며, 수동 ID 생성자나 저장소 복원용 팩터리는 제공하지 않습니다.
+
+## 클라이언트와 테스트
+
+브라우저 프론트엔드·Postman 등 외부 HTTP 클라이언트가 JSON API로 서버에 요청합니다.
+목록이 비어 있는지는 `GET /posts`의 빈 배열로 확인하며, 별도 존재 여부 조회 기능은 제공하지 않습니다.
+카테고리 Enum은 API 값과 도메인 변환만 담당하며 화면 표시용 필드는 포함하지 않습니다.
+
+`PostHttpApiTest`는 test 프로필의 H2 DB, 실제 Spring 컨텍스트와 MockMvc로 Bean 연결, CRUD, JSON 변환,
+HTTP 상태와 실패 응답을 검증합니다. 누락·null·공백 입력의 모든 필드 오류와 정렬된 목록,
+잘못된 생성 요청의 미저장 및 수정 실패 시 기존 데이터 보존도 확인합니다.
+별도 컨트롤러 테스트는 잘못된 입력과 수정 실패 시 데이터 보존,
+예상하지 못한 예외의 MVC 500 응답을 확인합니다.
+`ErrorHttpIntegrationTest`는 독립된 H2 DB와 임의 포트의 실제 내장 서버를 사용하여
+필터 예외·sendError의 ERROR 디스패치, checked exception, 필수 파라미터 누락,
+ResponseStatusException의 상태와 Retry-After 보존까지 검증합니다.
+`GlobalExceptionHandlerTest`는 도메인 오류의 상태 매핑과 검증 오류의 중복 제거·객체 전체 오류 변환,
+거부된 값·원본 메시지·내부 객체명·제약명 비노출을 확인합니다.
+`BaseResponseTest`는 응답 불변식, 검증 목록의 방어적 복사·수정 거부, 전역 null 생략 설정에서도 다섯 필드 유지를 확인합니다.
+서비스·응답 단위 테스트와 DB 자동 ID 생성 테스트도 유지합니다.
+PostDatabaseTest는 서비스 수정의 커밋·메타데이터 유지, 도메인 검증 실패 시 DB 보존,
+관리 엔티티의 변경 감지를 명시적인 save·UPDATE 쿼리 없이 확인합니다.
+메모리 대역의 동시 저장 테스트는 대역의 ID 부여·목록 동작만 검증하며 운영 DB의 동시 수정 보장을 의미하지 않습니다.
+
+현재 요구사항과 검증 위치는 [과제 요구사항 체크리스트](assignment-checklist.md)를 참고하세요.
+
+## 서버 실행 및 검증
+
+설정한 PostgreSQL 서버와 DB를 준비한 뒤 `./gradlew bootRun`으로 실행합니다.
+기본 주소는 `http://localhost:8080`이며 실행 설정은 `src/main/resources/application.yml`입니다.
+DB_URL 기본값은 `jdbc:postgresql://localhost:5432/assignment`, DB_USERNAME은 JVM의 OS 사용자 이름,
+DB_PASSWORD는 빈 값입니다. 환경변수로 실제 연결·인증 설정을 지정합니다.
+개발 환경은 `ddl-auto: update`, 자동 테스트는 독립된 H2 DB와 `create-drop`을 사용합니다.
+
+```bash
+./gradlew test bootJar
+./gradlew bootRun
+```
+
+게시글 생성 예시:
+
+```bash
+curl -i http://localhost:8080/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"첫 게시글","content":"본문","category":"GENERAL","author":"작성자"}'
+```
+
+생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data 배열에서 생성된 ID를 확인합니다.
+목록은 ID 오름차순이며, 카테고리는 GENERAL·QUESTION·INFORMATION 중 하나입니다.
+`GET /posts/{id}`로 단건 조회하고, `PUT /posts/{id}`에는 아래 JSON 본문을 보냅니다.
+
+```json
+{"title":"수정한 제목","content":"수정한 본문"}
+```
+
+`DELETE /posts/{id}`는 200과 공통 성공 응답을 반환합니다. 삭제한 ID를 다시 조회하면 404와 POST_NOT_FOUND입니다.
+빈 제목을 보내면 400과 VALIDATION_FAILED·violations, 깨진 JSON이나 잘못된 ID 형식은 400과 INVALID_REQUEST입니다.
+README는 배너만 유지하며 실행·API·설계 설명은 이 문서에서 관리합니다.
