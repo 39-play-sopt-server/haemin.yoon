@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.8'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.diffplug.spotless' version '8.5.1'
 }
 
 group = 'org.sopt'
@@ -27,4 +28,16 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+spotless {
+    java {
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java'
+        googleJavaFormat('1.28.0')
+        removeUnusedImports()
+    }
+}
+
+tasks.named('bootRun') {
+    dependsOn tasks.named('spotlessCheck')
 }
