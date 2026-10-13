@@ -20,14 +20,18 @@ public class ApiErrorController implements ErrorController {
   @RequestMapping("${server.error.path:${error.path:/error}}")
   public ResponseEntity<BaseResponse<Void>> error(HttpServletRequest request) {
     Object attribute = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
-    int value = attribute instanceof Integer status && status >= 400 && status <= 599 ? status : 500;
+    int value =
+        attribute instanceof Integer status && status >= 400 && status <= 599 ? status : 500;
     HttpStatusCode status = HttpStatusCode.valueOf(value);
     if (status.is5xxServerError()) {
       Object cause = request.getAttribute(RequestDispatcher.ERROR_EXCEPTION);
-      LOGGER.error("서블릿 요청 처리 실패: status={}", value,
+      LOGGER.error(
+          "서블릿 요청 처리 실패: status={}",
+          value,
           cause instanceof Throwable throwable ? throwable : null);
     }
-    return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON)
+    return ResponseEntity.status(status)
+        .contentType(MediaType.APPLICATION_JSON)
         .body(BaseResponse.failure(GlobalErrorCode.fromStatus(status)));
   }
 }

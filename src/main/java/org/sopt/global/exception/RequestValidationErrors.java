@@ -15,10 +15,11 @@ final class RequestValidationErrors {
     return bindingResult.getAllErrors().stream()
         .map(RequestValidationErrors::toViolation)
         .distinct()
-        .sorted(Comparator.comparing(ValidationViolation::field,
-                Comparator.nullsFirst(Comparator.naturalOrder()))
-            .thenComparing(ValidationViolation::code)
-            .thenComparing(ValidationViolation::message))
+        .sorted(
+            Comparator.comparing(
+                    ValidationViolation::field, Comparator.nullsFirst(Comparator.naturalOrder()))
+                .thenComparing(ValidationViolation::code)
+                .thenComparing(ValidationViolation::message))
         .toList();
   }
 

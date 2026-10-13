@@ -13,9 +13,8 @@ import org.sopt.post.domain.Post;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * 서비스·웹 단위 테스트용 저장소 대역입니다. 운영 서버에는 등록하지 않습니다.
- * 같은 엔티티 참조를 반환해 서비스의 엔티티 변경을 관찰합니다.
- * 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트에서 검증합니다.
+ * 서비스·웹 단위 테스트용 저장소 대역입니다. 운영 서버에는 등록하지 않습니다. 같은 엔티티 참조를 반환해 서비스의 엔티티 변경을 관찰합니다. 트랜잭션·변경 감지·롤백은 실제
+ * DB 통합 테스트에서 검증합니다.
  */
 public class InMemoryPostRepository implements LoadPostPort, SavePostPort {
   private final AtomicLong lastId = new AtomicLong();

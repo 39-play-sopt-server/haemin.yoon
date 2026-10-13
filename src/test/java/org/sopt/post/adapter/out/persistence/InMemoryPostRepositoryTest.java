@@ -1,11 +1,11 @@
 package org.sopt.post.adapter.out.persistence;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class InMemoryPostRepositoryTest {
   private final InMemoryPostRepository repository = new InMemoryPostRepository();

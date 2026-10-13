@@ -1,5 +1,9 @@
 package org.sopt.post.adapter.in.web;
 
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,12 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.ActiveProfiles;
-
-import static org.hamcrest.Matchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -34,7 +34,11 @@ class PostHttpApiTest {
 
   @Test
   void performsCrudThroughHttpWithSharedStorage() throws Exception {
-    mvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content("""
+    mvc.perform(
+            post("/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
         {"title":"제목","content":"본문","category":"QUESTION","author":"작성자"}
         """))
         .andExpect(status().isCreated())
@@ -51,8 +55,11 @@ class PostHttpApiTest {
         .andExpect(jsonPath("$.data.title").value("제목"))
         .andExpect(jsonPath("$.data.author").value("작성자"))
         .andExpect(jsonPath("$.data.createdAt").isString());
-    mvc.perform(put("/posts/{id}", id).contentType(MediaType.APPLICATION_JSON)
-        .content("""
+    mvc.perform(
+            put("/posts/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
             {"title":"새 제목","content":"새 본문"}
             """))
         .andExpect(status().isOk())
@@ -70,8 +77,14 @@ class PostHttpApiTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"", "null", "{", "{}",
-      "{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"UNKNOWN\",\"author\":\"작성자\"}"})
+  @ValueSource(
+      strings = {
+        "",
+        "null",
+        "{",
+        "{}",
+        "{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"UNKNOWN\",\"author\":\"작성자\"}"
+      })
   void rejectsInvalidBodiesWithCommonResponse(String body) throws Exception {
     mvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content(body))
         .andExpect(status().isBadRequest())
@@ -82,7 +95,11 @@ class PostHttpApiTest {
 
   @Test
   void rejectsBlankTitleWithFieldViolation() throws Exception {
-    mvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content("""
+    mvc.perform(
+            post("/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
         {"title":" ","content":"본문","category":"GENERAL","author":"작성자"}
         """))
         .andExpect(status().isBadRequest())
@@ -93,8 +110,12 @@ class PostHttpApiTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"{}", "{\"title\":null,\"content\":null,\"category\":null,\"author\":null}",
-      "{\"title\":\" \",\"content\":\"\\t\\n\",\"category\":null,\"author\":\"　\"}"})
+  @ValueSource(
+      strings = {
+        "{}",
+        "{\"title\":null,\"content\":null,\"category\":null,\"author\":null}",
+        "{\"title\":\" \",\"content\":\"\\t\\n\",\"category\":null,\"author\":\"　\"}"
+      })
   void reportsAllInvalidCreateFieldsWithoutWritingPost(String body) throws Exception {
     mvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content(body))
         .andExpect(status().isBadRequest())
@@ -102,22 +123,31 @@ class PostHttpApiTest {
         .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
         .andExpect(jsonPath("$.data").value(nullValue()))
         .andExpect(jsonPath("$.violations.length()").value(4))
-        .andExpect(jsonPath("$.violations[*].field").value(
-            contains("author", "category", "content", "title")))
-        .andExpect(jsonPath("$.violations[*].code").value(
-            contains("REQUIRED", "REQUIRED", "REQUIRED", "REQUIRED")))
+        .andExpect(
+            jsonPath("$.violations[*].field")
+                .value(contains("author", "category", "content", "title")))
+        .andExpect(
+            jsonPath("$.violations[*].code")
+                .value(contains("REQUIRED", "REQUIRED", "REQUIRED", "REQUIRED")))
         .andExpect(jsonPath("$.violations[*].rejectedValue").doesNotExist());
     mvc.perform(get("/posts")).andExpect(jsonPath("$.data").isEmpty());
   }
 
   @Test
   void invalidUpdateReportsBothFieldsAndPreservesStoredPost() throws Exception {
-    mvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content("""
+    mvc.perform(
+            post("/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
         {"title":"기존 제목","content":"기존 본문","category":"GENERAL","author":"작성자"}
-        """ )).andExpect(status().isCreated());
+        """))
+        .andExpect(status().isCreated());
     long id = repository.findAll().getFirst().getId();
-    mvc.perform(put("/posts/{id}", id).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"title\":\" \",\"content\":null}"))
+    mvc.perform(
+            put("/posts/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\" \",\"content\":null}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
         .andExpect(jsonPath("$.violations[*].field").value(contains("content", "title")));
@@ -136,8 +166,10 @@ class PostHttpApiTest {
 
   @Test
   void missingUpdateAndDeleteReturn404() throws Exception {
-    mvc.perform(put("/posts/99999").contentType(MediaType.APPLICATION_JSON)
-        .content("{\"title\":\"제목\",\"content\":\"본문\"}"))
+    mvc.perform(
+            put("/posts/99999")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"제목\",\"content\":\"본문\"}"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
     mvc.perform(delete("/posts/99999"))
@@ -169,8 +201,7 @@ class PostHttpApiTest {
     mvc.perform(post("/posts").contentType(MediaType.TEXT_PLAIN).content("secret input"))
         .andExpect(status().isUnsupportedMediaType())
         .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"))
-        .andExpect(content().string(not(
-            containsString("secret input"))));
+        .andExpect(content().string(not(containsString("secret input"))));
   }
 
   @Test
@@ -183,18 +214,20 @@ class PostHttpApiTest {
 
   @Test
   void servletErrorDispatchUsesCommonResponseEvenForHtmlAccept() throws Exception {
-    mvc.perform(get("/error").accept(MediaType.TEXT_HTML)
-            .with(request -> {
-              request.setDispatcherType(DispatcherType.ERROR);
-              return request;
-            })
-            .requestAttr(RequestDispatcher.ERROR_STATUS_CODE, 403)
-            .requestAttr(RequestDispatcher.ERROR_MESSAGE, "internal secret"))
+    mvc.perform(
+            get("/error")
+                .accept(MediaType.TEXT_HTML)
+                .with(
+                    request -> {
+                      request.setDispatcherType(DispatcherType.ERROR);
+                      return request;
+                    })
+                .requestAttr(RequestDispatcher.ERROR_STATUS_CODE, 403)
+                .requestAttr(RequestDispatcher.ERROR_MESSAGE, "internal secret"))
         .andExpect(status().isForbidden())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("FORBIDDEN"))
-        .andExpect(content().string(not(
-            containsString("internal secret"))));
+        .andExpect(content().string(not(containsString("internal secret"))));
   }
 }

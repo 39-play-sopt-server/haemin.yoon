@@ -21,8 +21,8 @@ public class PostQueryController {
 
   @GetMapping
   public BaseResponse<List<PostResponse>> getPosts() {
-    return BaseResponse.success(useCase.getPosts().stream().map(PostResponse::from).toList(),
-        "게시글 목록을 조회했습니다.");
+    return BaseResponse.success(
+        useCase.getPosts().stream().map(PostResponse::from).toList(), "게시글 목록을 조회했습니다.");
   }
 
   @GetMapping("/{id}")

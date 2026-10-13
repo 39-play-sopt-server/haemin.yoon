@@ -35,8 +35,8 @@ public class PostCommandController {
   }
 
   @PutMapping("/{id}")
-  public BaseResponse<Void> updatePost(@PathVariable("id") long id,
-      @Valid @RequestBody UpdatePostRequest request) {
+  public BaseResponse<Void> updatePost(
+      @PathVariable("id") long id, @Valid @RequestBody UpdatePostRequest request) {
     useCase.updatePost(id, request.title(), request.content());
     return BaseResponse.success(null, "게시글이 수정되었습니다.");
   }

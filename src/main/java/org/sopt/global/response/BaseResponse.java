@@ -5,13 +5,12 @@ import java.util.List;
 import org.sopt.global.exception.ErrorCode;
 
 /**
- * 모든 서버 작업에 공통으로 사용하는 응답 봉투입니다. T는 작업별 결과 데이터의 타입입니다.
- * 클라이언트는 성공 여부·코드·메시지를 동일하게 처리하고, 성공일 때만 결과를 사용합니다.
- * record로 응답 필드의 재할당을 막지만, T 자체의 불변성까지 보장하지는 않습니다.
+ * 모든 서버 작업에 공통으로 사용하는 응답 봉투입니다. T는 작업별 결과 데이터의 타입입니다. 클라이언트는 성공 여부·코드·메시지를 동일하게 처리하고, 성공일 때만 결과를
+ * 사용합니다. record로 응답 필드의 재할당을 막지만, T 자체의 불변성까지 보장하지는 않습니다.
  */
 @JsonInclude(JsonInclude.Include.ALWAYS)
-public record BaseResponse<T>(boolean success, String code, String message, T data,
-    List<ValidationViolation> violations) {
+public record BaseResponse<T>(
+    boolean success, String code, String message, T data, List<ValidationViolation> violations) {
   /** 기존 성공·일반 실패 응답의 생성 경로는 빈 검증 목록을 사용합니다. */
   public BaseResponse(boolean success, String code, String message, T data) {
     this(success, code, message, data, List.of());
@@ -47,8 +46,8 @@ public record BaseResponse<T>(boolean success, String code, String message, T da
     return new BaseResponse<>(false, errorCode.getCode(), errorCode.getMessage(), null);
   }
 
-  public static <T> BaseResponse<T> failure(ErrorCode errorCode,
-      List<ValidationViolation> violations) {
+  public static <T> BaseResponse<T> failure(
+      ErrorCode errorCode, List<ValidationViolation> violations) {
     return new BaseResponse<>(false, errorCode.getCode(), errorCode.getMessage(), null, violations);
   }
 }

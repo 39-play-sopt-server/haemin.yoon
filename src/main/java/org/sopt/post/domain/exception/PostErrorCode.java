@@ -4,8 +4,8 @@ import org.sopt.global.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 /**
- * 게시글 처리의 예상 가능한 실패를 코드와 안내 메시지로 정의합니다.
- * 오류마다 예외 클래스를 만들지 않고, 하나의 PostException에 이 코드를 담아 실패 종류를 구분합니다.
+ * 게시글 처리의 예상 가능한 실패를 코드와 안내 메시지로 정의합니다. 오류마다 예외 클래스를 만들지 않고, 하나의 PostException에 이 코드를 담아 실패 종류를
+ * 구분합니다.
  */
 public enum PostErrorCode implements ErrorCode {
   POST_NOT_FOUND(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "존재하지 않는 게시글입니다."),

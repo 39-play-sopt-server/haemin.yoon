@@ -1,7 +1,5 @@
 package org.sopt.post.domain;
 
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,6 +9,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 

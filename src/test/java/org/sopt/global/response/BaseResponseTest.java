@@ -1,10 +1,11 @@
 package org.sopt.global.response;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
-import java.util.stream.Stream;
 import java.util.ArrayList;
 import java.util.List;
-import tools.jackson.databind.json.JsonMapper;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -12,14 +13,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.global.exception.GlobalErrorCode;
-
-import static org.junit.jupiter.api.Assertions.*;
+import tools.jackson.databind.json.JsonMapper;
 
 class BaseResponseTest {
   @Test
   void validationResponseOwnsAnImmutableSnapshotOfViolations() {
-    var violations = new ArrayList<>(List.of(
-        new ValidationViolation("title", "REQUIRED", "필수 입력값입니다.")));
+    var violations =
+        new ArrayList<>(List.of(new ValidationViolation("title", "REQUIRED", "필수 입력값입니다.")));
     var response = BaseResponse.failure(GlobalErrorCode.VALIDATION_FAILED, violations);
     violations.clear();
     assertEquals(1, response.violations().size());
@@ -29,26 +29,34 @@ class BaseResponseTest {
 
   @Test
   void rejectsSuccessContainingValidationErrors() {
-    assertThrows(IllegalArgumentException.class, () -> new BaseResponse<>(true, "SUCCESS", "성공", null,
-        List.of(new ValidationViolation("title", "REQUIRED", "필수 입력값입니다."))));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            new BaseResponse<>(
+                true,
+                "SUCCESS",
+                "성공",
+                null,
+                List.of(new ValidationViolation("title", "REQUIRED", "필수 입력값입니다."))));
   }
 
   @ParameterizedTest
   @NullAndEmptySource
   @ValueSource(strings = {" "})
   void rejectsMissingMessage(String message) {
-    assertThrows(IllegalArgumentException.class,
-        () -> BaseResponse.success(null, message));
+    assertThrows(IllegalArgumentException.class, () -> BaseResponse.success(null, message));
   }
 
   @Test
   void retainsNullDataEvenWhenGlobalJacksonConfigOmitsNulls() {
-    var mapper = JsonMapper.builder()
-        .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(
-            JsonInclude.Include.NON_NULL))
-        .build();
-    var json = mapper.readTree(mapper.writeValueAsString(
-        BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST)));
+    var mapper =
+        JsonMapper.builder()
+            .changeDefaultPropertyInclusion(
+                inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL))
+            .build();
+    var json =
+        mapper.readTree(
+            mapper.writeValueAsString(BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST)));
     assertTrue(json.has("data"));
     assertTrue(json.get("data").isNull());
     assertEquals(5, json.size());
@@ -70,8 +78,8 @@ class BaseResponseTest {
   @ParameterizedTest
   @MethodSource("invalidResponses")
   void rejectsInconsistentResponses(boolean success, String code, String data) {
-    assertThrows(IllegalArgumentException.class,
-        () -> new BaseResponse<>(success, code, "메시지", data));
+    assertThrows(
+        IllegalArgumentException.class, () -> new BaseResponse<>(success, code, "메시지", data));
   }
 
   @Test

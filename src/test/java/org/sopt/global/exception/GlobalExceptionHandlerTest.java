@@ -1,11 +1,13 @@
 package org.sopt.global.exception;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxy;
 import ch.qos.logback.core.read.ListAppender;
-import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.sopt.global.response.BaseResponse;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
@@ -16,24 +18,46 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.context.request.ServletWebRequest;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 class GlobalExceptionHandlerTest {
   private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
   @Test
   void validationResponseDoesNotExposeRejectedValuesOrInternalMessages() throws Exception {
-    var binding = new org.springframework.validation.BeanPropertyBindingResult(new Object(), "internalRequestType");
-    binding.addError(new org.springframework.validation.FieldError("internalRequestType", "title",
-        "secret rejected value", false, new String[] {"NotBlank"}, null, "secret validation message"));
-    binding.addError(new org.springframework.validation.FieldError("internalRequestType", "title",
-        "another secret", false, new String[] {"NotNull"}, null, "another secret message"));
-    binding.addError(new org.springframework.validation.ObjectError("internalRequestType",
-        new String[] {"InternalConstraintName"}, null, "secret object validation message"));
-    var parameter = new org.springframework.core.MethodParameter(
-        GlobalExceptionHandlerTest.class.getDeclaredMethod("validationTarget", Object.class), 0);
-    var response = handler.handleException(new org.springframework.web.bind.MethodArgumentNotValidException(
-        parameter, binding), new ServletWebRequest(new MockHttpServletRequest(), new MockHttpServletResponse()));
+    var binding =
+        new org.springframework.validation.BeanPropertyBindingResult(
+            new Object(), "internalRequestType");
+    binding.addError(
+        new org.springframework.validation.FieldError(
+            "internalRequestType",
+            "title",
+            "secret rejected value",
+            false,
+            new String[] {"NotBlank"},
+            null,
+            "secret validation message"));
+    binding.addError(
+        new org.springframework.validation.FieldError(
+            "internalRequestType",
+            "title",
+            "another secret",
+            false,
+            new String[] {"NotNull"},
+            null,
+            "another secret message"));
+    binding.addError(
+        new org.springframework.validation.ObjectError(
+            "internalRequestType",
+            new String[] {"InternalConstraintName"},
+            null,
+            "secret object validation message"));
+    var parameter =
+        new org.springframework.core.MethodParameter(
+            GlobalExceptionHandlerTest.class.getDeclaredMethod("validationTarget", Object.class),
+            0);
+    var response =
+        handler.handleException(
+            new org.springframework.web.bind.MethodArgumentNotValidException(parameter, binding),
+            new ServletWebRequest(new MockHttpServletRequest(), new MockHttpServletResponse()));
     assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
     String serialized = mapper.writeValueAsString(response.getBody());
@@ -53,11 +77,20 @@ class GlobalExceptionHandlerTest {
 
   @Test
   void supportsNewDomainErrorWithoutChangingHandler() {
-    ErrorCode conflict = new ErrorCode() {
-      public String getCode() { return "DUPLICATE_RESOURCE"; }
-      public String getMessage() { return "이미 존재하는 리소스입니다."; }
-      public HttpStatus getHttpStatus() { return HttpStatus.CONFLICT; }
-    };
+    ErrorCode conflict =
+        new ErrorCode() {
+          public String getCode() {
+            return "DUPLICATE_RESOURCE";
+          }
+
+          public String getMessage() {
+            return "이미 존재하는 리소스입니다.";
+          }
+
+          public HttpStatus getHttpStatus() {
+            return HttpStatus.CONFLICT;
+          }
+        };
     var response = handler.handleBaseException(new BaseException(conflict));
     assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
     assertEquals("DUPLICATE_RESOURCE", response.getBody().code());
@@ -82,15 +115,18 @@ class GlobalExceptionHandlerTest {
 
   @Test
   void preservesExplicitInternalServerErrorStatus() {
-    var response = handler.handleBaseException(new BaseException(GlobalErrorCode.INTERNAL_SERVER_ERROR));
+    var response =
+        handler.handleBaseException(new BaseException(GlobalErrorCode.INTERNAL_SERVER_ERROR));
     assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
   }
 
   @Test
   void translatesUnreadableBodyInto400() throws Exception {
-    var response = handler.handleException(new HttpMessageNotReadableException(
-        "invalid JSON", new MockHttpInputMessage(new byte[0])),
-        new ServletWebRequest(new MockHttpServletRequest(), new MockHttpServletResponse()));
+    var response =
+        handler.handleException(
+            new HttpMessageNotReadableException(
+                "invalid JSON", new MockHttpInputMessage(new byte[0])),
+            new ServletWebRequest(new MockHttpServletRequest(), new MockHttpServletResponse()));
     assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     assertEquals("INVALID_REQUEST", ((BaseResponse<?>) response.getBody()).code());
     assertNull(((BaseResponse<?>) response.getBody()).data());
@@ -111,7 +147,8 @@ class GlobalExceptionHandlerTest {
       assertEquals("서버 오류가 발생했습니다.", response.getBody().message());
       assertNull(response.getBody().data());
       assertEquals(1, capture.list.size());
-      assertSame(cause, ((ThrowableProxy) capture.list.getFirst().getThrowableProxy()).getThrowable());
+      assertSame(
+          cause, ((ThrowableProxy) capture.list.getFirst().getThrowableProxy()).getThrowable());
     } finally {
       logger.detachAppender(capture);
       capture.stop();

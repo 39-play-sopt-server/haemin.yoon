@@ -1,5 +1,10 @@
 package org.sopt.post.adapter.in.web;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,35 +18,40 @@ import org.sopt.post.adapter.out.persistence.InMemoryPostRepository;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
 import org.sopt.post.domain.Post;
-import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
 class PostCommandQueryControllerTest {
   private final InMemoryPostRepository repository = new InMemoryPostRepository();
-  private final PostCommandController commands = new PostCommandController(
-      new PostCommandService(repository, repository));
-  private final PostQueryController queries = new PostQueryController(new PostQueryService(repository));
+  private final PostCommandController commands =
+      new PostCommandController(new PostCommandService(repository, repository));
+  private final PostQueryController queries =
+      new PostQueryController(new PostQueryService(repository));
   private MockMvc mvc;
 
   @BeforeEach
   void setUp() {
-    mvc = MockMvcBuilders.standaloneSetup(commands, queries)
-        .setControllerAdvice(new GlobalExceptionHandler()).build();
+    mvc =
+        MockMvcBuilders.standaloneSetup(commands, queries)
+            .setControllerAdvice(new GlobalExceptionHandler())
+            .build();
   }
 
   static Stream<Arguments> invalidRequests() {
     return Stream.of(
         Arguments.of("", "INVALID_REQUEST"),
-        Arguments.of("{\"title\":\"\",\"content\":\"본문\",\"category\":\"GENERAL\",\"author\":\"작성자\"}", "VALIDATION_FAILED"),
-        Arguments.of("{\"title\":\"제목\",\"content\":\"\",\"category\":\"GENERAL\",\"author\":\"작성자\"}", "VALIDATION_FAILED"),
-        Arguments.of("{\"title\":\"제목\",\"content\":\"본문\",\"author\":\"작성자\"}", "VALIDATION_FAILED"),
-        Arguments.of("{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"GENERAL\",\"author\":\"\"}", "VALIDATION_FAILED"));
+        Arguments.of(
+            "{\"title\":\"\",\"content\":\"본문\",\"category\":\"GENERAL\",\"author\":\"작성자\"}",
+            "VALIDATION_FAILED"),
+        Arguments.of(
+            "{\"title\":\"제목\",\"content\":\"\",\"category\":\"GENERAL\",\"author\":\"작성자\"}",
+            "VALIDATION_FAILED"),
+        Arguments.of(
+            "{\"title\":\"제목\",\"content\":\"본문\",\"author\":\"작성자\"}", "VALIDATION_FAILED"),
+        Arguments.of(
+            "{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"GENERAL\",\"author\":\"\"}",
+            "VALIDATION_FAILED"));
   }
 
   @ParameterizedTest
@@ -67,8 +77,10 @@ class PostCommandQueryControllerTest {
   @Test
   void invalidUpdatePreservesBothFields() throws Exception {
     createPost();
-    mvc.perform(put("/posts/1").contentType(MediaType.APPLICATION_JSON)
-        .content("{\"title\":\"새 제목\",\"content\":\" \"}"))
+    mvc.perform(
+            put("/posts/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"새 제목\",\"content\":\" \"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     assertEquals("제목", queries.getPost(1).data().title());
@@ -81,8 +93,10 @@ class PostCommandQueryControllerTest {
     var original = queries.getPost(1).data();
     var list = queries.getPosts().data();
     assertThrows(UnsupportedOperationException.class, list::clear);
-    mvc.perform(put("/posts/1").contentType(MediaType.APPLICATION_JSON)
-        .content("{\"title\":\"수정 제목\",\"content\":\"수정 본문\"}"))
+    mvc.perform(
+            put("/posts/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"수정 제목\",\"content\":\"수정 본문\"}"))
         .andExpect(status().isOk());
     assertEquals("제목", original.title());
     assertEquals("본문", list.getFirst().content());
@@ -94,15 +108,19 @@ class PostCommandQueryControllerTest {
 
   @Test
   void unexpectedServiceFailureUsesMvcAdviceAndHidesInternalDetails() throws Exception {
-    var service = new PostQueryService(new InMemoryPostRepository()) {
-      @Override
-      public List<Post> getPosts() {
-        throw new IllegalStateException("internal secret details");
-      }
-    };
-    var failingMvc = MockMvcBuilders.standaloneSetup(new PostQueryController(service))
-        .setControllerAdvice(new GlobalExceptionHandler()).build();
-    failingMvc.perform(get("/posts"))
+    var service =
+        new PostQueryService(new InMemoryPostRepository()) {
+          @Override
+          public List<Post> getPosts() {
+            throw new IllegalStateException("internal secret details");
+          }
+        };
+    var failingMvc =
+        MockMvcBuilders.standaloneSetup(new PostQueryController(service))
+            .setControllerAdvice(new GlobalExceptionHandler())
+            .build();
+    failingMvc
+        .perform(get("/posts"))
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
