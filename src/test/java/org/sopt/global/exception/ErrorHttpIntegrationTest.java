@@ -29,7 +29,8 @@ import tools.jackson.databind.json.JsonMapper;
 /** MockMvc로는 수행되지 않는 실제 서블릿 ERROR 디스패치까지 검증합니다. */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "spring.datasource.url=jdbc:h2:mem:error-http;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+    properties =
+        "spring.datasource.url=jdbc:h2:mem:error-http;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1")
 @ActiveProfiles("test")
 @Import({
   ErrorHttpIntegrationTest.ErrorFixtures.class,

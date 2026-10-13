@@ -26,6 +26,17 @@ class PostDatabaseTest {
   @Autowired org.sopt.post.application.port.in.command.PostCommandUseCase commands;
 
   @Test
+  void flywayCreatesSchemaBeforeJpaStarts() {
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM \"flyway_schema_history\" WHERE \"version\" = '1' AND \"success\" = true",
+            Integer.class));
+    writer.save(new Post("마이그레이션 검증", "본문", Category.GENERAL, "작성자"));
+    assertEquals("마이그레이션 검증", reader.findAll().getFirst().getTitle());
+  }
+
+  @Test
   void managedPostUpdateIsCommittedWithoutExplicitSaveOrUpdateQuery() {
     writer.save(new Post("기존 제목", "기존 본문", Category.QUESTION, "작성자"));
     long id = reader.findAll().getFirst().getId();

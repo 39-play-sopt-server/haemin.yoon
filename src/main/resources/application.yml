@@ -5,5 +5,10 @@ spring:
     password: ${DB_PASSWORD:}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
+  flyway:
+    locations: classpath:db/migration
+    default-schema: public
+    baseline-on-migrate: false
+    clean-disabled: true
