@@ -9,10 +9,7 @@ import org.sopt.post.domain.exception.PostException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 상태를 변경하지 않는 게시글 조회 흐름을 구현하는 Query 서비스입니다. LoadPostPort만 주입받아 변경 포트를 사용할 필요가 없습니다. 이후 검색·필터 같은 조회
- * 요구를 Command 처리와 독립적으로 확장할 수 있습니다.
- */
+/** 목록·단건의 순수 조회를 읽기 전용 트랜잭션으로 처리합니다. 조회수는 변경하지 않습니다. */
 @Service
 @Transactional(readOnly = true)
 public class PostQueryService implements PostQueryUseCase {

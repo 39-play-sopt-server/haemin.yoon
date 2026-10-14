@@ -22,6 +22,24 @@ class PostCommandQueryServiceTest {
   private final PostCommandUseCase commands = new PostCommandService(repository, repository);
   private final PostQueryUseCase queries = new PostQueryService(repository);
 
+  @Test
+  void queryingPostNeverChangesViewCount() {
+    commands.createPost("제목", "본문", Category.GENERAL, "작성자");
+    queries.getPost(1);
+    queries.getPost(1);
+    assertEquals(0, queries.getPosts().getFirst().getViewCount());
+  }
+
+  @Test
+  void commandIncrementsViewsAndQueryOnlyReadsTheResult() {
+    commands.createPost("제목", "본문", Category.GENERAL, "작성자");
+    commands.increaseViewCount(1);
+    assertEquals(1, queries.getPost(1).getViewCount());
+    assertEquals(1, queries.getPost(1).getViewCount());
+    assertNotFound(() -> commands.increaseViewCount(2));
+    assertEquals(1, queries.getPost(1).getViewCount());
+  }
+
   @ParameterizedTest
   @NullAndEmptySource
   @ValueSource(strings = {" ", "   ", "\t", "\n", "\u3000"})

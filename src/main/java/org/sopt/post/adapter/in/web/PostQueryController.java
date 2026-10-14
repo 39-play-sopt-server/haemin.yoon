@@ -7,22 +7,25 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.sopt.global.response.BaseResponse;
 import org.sopt.post.adapter.in.web.dto.response.PostResponse;
+import org.sopt.post.application.facade.PostFacade;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** HTTP 조회 요청을 Query 입력 포트에 전달하고 불변 DTO로 응답합니다. */
+/** 목록은 Query 입력 포트에, 상세 열람은 Facade에 전달하고 불변 DTO로 응답합니다. */
 @Tag(name = "게시글", description = "게시글 생성·조회·수정·삭제")
 @ApiResponse(responseCode = "500", ref = "#/components/responses/InternalServerError")
 @RestController
 @RequestMapping("/posts")
 public class PostQueryController {
   private final PostQueryUseCase useCase;
+  private final PostFacade facade;
 
-  public PostQueryController(PostQueryUseCase useCase) {
+  public PostQueryController(PostQueryUseCase useCase, PostFacade facade) {
     this.useCase = useCase;
+    this.facade = facade;
   }
 
   @Operation(
@@ -35,13 +38,15 @@ public class PostQueryController {
         useCase.getPosts().stream().map(PostResponse::from).toList(), "게시글 목록을 조회했습니다.");
   }
 
-  @Operation(summary = "게시글 단건 조회")
+  @Operation(
+      summary = "게시글 단건 조회",
+      description = "상세 조회 성공마다 조회수가 1 증가하며 증가한 값을 반환합니다. 동일 사용자의 반복 조회도 집계합니다.")
   @ApiResponse(responseCode = "200", description = "게시글 조회 성공")
   @ApiResponse(responseCode = "400", ref = "#/components/responses/InvalidPostId")
   @ApiResponse(responseCode = "404", ref = "#/components/responses/PostNotFound")
   @GetMapping("/{id}")
   public BaseResponse<PostResponse> getPost(
       @Parameter(description = "게시글 ID", example = "1") @PathVariable("id") long id) {
-    return BaseResponse.success(PostResponse.from(useCase.getPost(id)), "게시글을 조회했습니다.");
+    return BaseResponse.success(PostResponse.from(facade.getPostDetail(id)), "게시글을 조회했습니다.");
   }
 }

@@ -17,23 +17,33 @@ class FlywayMigrationTest {
   }
 
   @Test
-  void explicitBaselineSkipsInitialDdlAndPreservesExistingPost() throws Exception {
+  void explicitBaselineSkipsInitialDdlAndUpgradesExistingPostWithZeroViews() throws Exception {
     String url = existingDatabase();
     Flyway flyway = flyway(url);
     flyway.baseline();
-    assertEquals(0, flyway.migrate().migrationsExecuted);
+    assertEquals(1, flyway.migrate().migrationsExecuted);
     flyway.validate();
     assertOriginalPost(url);
     try (var connection = DriverManager.getConnection(url, "sa", "");
         var statement = connection.createStatement();
         var rows =
             statement.executeQuery(
-                "SELECT \"version\", \"type\" FROM \"flyway_schema_history\" WHERE \"version\" IS NOT NULL")) {
+                "SELECT \"version\", \"type\" FROM \"flyway_schema_history\" WHERE \"version\" IS NOT NULL ORDER BY \"installed_rank\"")) {
       assertTrue(rows.next());
       assertEquals("1", rows.getString(1));
       assertEquals("BASELINE", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("2", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
       assertFalse(rows.next());
     }
+    try (var connection = DriverManager.getConnection(url, "sa", "");
+        var statement = connection.createStatement();
+        var rows = statement.executeQuery("SELECT view_count FROM posts")) {
+      assertTrue(rows.next());
+      assertEquals(0, rows.getLong(1));
+    }
+    assertEquals(0, flyway.migrate().migrationsExecuted);
   }
 
   private Flyway flyway(String url) {

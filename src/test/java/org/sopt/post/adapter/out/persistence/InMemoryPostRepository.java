@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.application.port.out.SavePostPort;
@@ -40,6 +41,19 @@ public class InMemoryPostRepository implements LoadPostPort, SavePostPort {
   @Override
   public Optional<Post> findById(long id) {
     return Optional.ofNullable(posts.get(id));
+  }
+
+  @Override
+  public boolean incrementViewCount(long id) {
+    var incremented = new AtomicBoolean();
+    posts.computeIfPresent(
+        id,
+        (key, post) -> {
+          ReflectionTestUtils.setField(post, "viewCount", post.getViewCount() + 1);
+          incremented.set(true);
+          return post;
+        });
+    return incremented.get();
   }
 
   @Override

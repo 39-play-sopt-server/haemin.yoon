@@ -15,6 +15,7 @@ import org.sopt.global.exception.GlobalExceptionHandler;
 import org.sopt.post.adapter.in.web.dto.PostCategory;
 import org.sopt.post.adapter.in.web.dto.request.CreatePostRequest;
 import org.sopt.post.adapter.out.persistence.InMemoryPostRepository;
+import org.sopt.post.application.facade.PostFacade;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
 import org.sopt.post.domain.Post;
@@ -27,7 +28,10 @@ class PostCommandQueryControllerTest {
   private final PostCommandController commands =
       new PostCommandController(new PostCommandService(repository, repository));
   private final PostQueryController queries =
-      new PostQueryController(new PostQueryService(repository));
+      new PostQueryController(
+          new PostQueryService(repository),
+          new PostFacade(
+              new PostCommandService(repository, repository), new PostQueryService(repository)));
   private MockMvc mvc;
 
   @BeforeEach
@@ -108,15 +112,20 @@ class PostCommandQueryControllerTest {
 
   @Test
   void unexpectedServiceFailureUsesMvcAdviceAndHidesInternalDetails() throws Exception {
+    var failingRepository = new InMemoryPostRepository();
     var service =
-        new PostQueryService(new InMemoryPostRepository()) {
+        new PostQueryService(failingRepository) {
           @Override
           public List<Post> getPosts() {
             throw new IllegalStateException("internal secret details");
           }
         };
     var failingMvc =
-        MockMvcBuilders.standaloneSetup(new PostQueryController(service))
+        MockMvcBuilders.standaloneSetup(
+                new PostQueryController(
+                    service,
+                    new PostFacade(
+                        new PostCommandService(failingRepository, failingRepository), service)))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
     failingMvc

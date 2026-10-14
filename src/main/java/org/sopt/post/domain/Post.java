@@ -38,6 +38,10 @@ public class Post {
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
+  /** 조회수는 전용 출력 포트의 원자적 UPDATE로 변경하며 일반 엔티티 수정에서 제외합니다. */
+  @Column(name = "view_count", nullable = false, updatable = false)
+  private long viewCount;
+
   /** JPA가 DB의 행을 엔티티로 복원할 때 사용합니다. */
   protected Post() {}
 
@@ -85,6 +89,10 @@ public class Post {
 
   public LocalDateTime getCreatedAt() {
     return createdAt;
+  }
+
+  public long getViewCount() {
+    return viewCount;
   }
 
   /** 모든 값을 검증한 뒤 관리 중인 엔티티를 변경합니다. 메타데이터는 유지합니다. */

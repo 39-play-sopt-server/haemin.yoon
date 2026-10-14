@@ -32,6 +32,11 @@ public class PostPersistenceAdapter implements LoadPostPort, SavePostPort {
   }
 
   @Override
+  public boolean incrementViewCount(long id) {
+    return postRepository.incrementViewCount(id) == 1;
+  }
+
+  @Override
   public void delete(Post post) {
     postRepository.delete(post);
   }

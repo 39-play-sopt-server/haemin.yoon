@@ -15,4 +15,7 @@ public interface PostCommandUseCase {
 
   /** 해당 게시글을 삭제하며, 없으면 POST_NOT_FOUND 예외를 발생시킵니다. */
   void deletePost(long id);
+
+  /** 조회수를 원자적으로 1 증가시키며, 없으면 POST_NOT_FOUND 예외를 발생시킵니다. */
+  void increaseViewCount(long id);
 }
