@@ -8,6 +8,7 @@ Hibernate의 `ddl-auto: update` 대신 버전별 SQL을 Git에서 관리한다.
 
 - SQL 위치: `src/main/resources/db/migration`
 - 초기 스키마: `V1__create_posts.sql`
+- 조회수 추가: `V2__add_post_view_count.sql` (기존·신규 게시글 0, NOT NULL, 음수 금지)
 - 이력 테이블: `public.flyway_schema_history`
 - 자동 baseline은 비활성화한다. 기존 DB의 최초 등록은 별도 명령으로 수행한다.
 - `clean`은 비활성화한다.
@@ -76,9 +77,9 @@ export DB_USERNAME="$(whoami)"
 
 ## 이후 변경
 
-다음 실제 스키마 변경은 `V2__설명.sql`로 추가한다. 이미 적용한 파일은
+조회수 추가는 `V2__add_post_view_count.sql`로 적용한다. 다음 스키마 변경은 `V3__설명.sql`로 추가한다. 이미 적용한 파일은
 수정하지 않고 새 버전을 추가한다. 기존 DB와 빈 DB 양쪽에서 변경 결과를 검증한다.
-이 도입에는 별도 게시글 기능이나 예시용 V2를 추가하지 않았다.
+기존 baseline 1 DB에서는 V2만, 빈 DB에서는 V1과 V2가 순서대로 실행된다.
 
 ## 검증
 
@@ -89,7 +90,7 @@ export DB_USERNAME="$(whoami)"
 - 테스트 프로필도 `ddl-auto: validate`를 사용한다. Flyway가 테이블을 생성해야
   기존 게시글 저장·조회 테스트가 실행된다.
 - `FlywayMigrationTest`는 기존 테이블의 자동 등록 거부와 명시적 baseline 후
-  기존 게시글 보존, V1 생략을 H2 PostgreSQL 모드에서 검증한다.
+  기존 게시글 보존, V1 생략과 V2 적용 후 조회수 0을 H2 PostgreSQL 모드에서 검증한다.
 - H2 검증은 실제 PostgreSQL 검증을 대체하지 않는다.
 
 ### 2026-10-13 로컬 검증 결과

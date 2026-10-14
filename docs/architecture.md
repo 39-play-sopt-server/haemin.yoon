@@ -12,16 +12,17 @@ Command/Query 서비스와 포트로 책임을 분리하고, 엔티티의 변경
 | `Main` | `@SpringBootApplication` | 서버 시작과 org.sopt 하위 컴포넌트 스캔 |
 | `PostCommandController` | `@RestController`, `@RequestMapping` | 작성·수정·삭제 HTTP 요청 |
 | `PostQueryController` | `@RestController`, `@RequestMapping` | 목록·단건 조회 HTTP 요청 |
-| `PostCommandService` | `@Service`, `@Transactional` | 생성·수정·삭제의 비즈니스 트랜잭션 |
-| `PostQueryService` | `@Service`, `@Transactional(readOnly = true)` | 읽기 전용 조회 트랜잭션 |
-| `PostPersistenceAdapter` | `@Component`, `@RequiredArgsConstructor` | LoadPostPort와 SavePostPort의 공유 JPA 구현 |
+| `PostCommandService` | `@Service`, `@Transactional` | 생성·수정·삭제·조회수 증가의 쓰기 작업 |
+| `PostQueryService` | `@Service`, `@Transactional(readOnly = true)` | 목록·단건 순수 조회 |
+| `PostFacade` | `@Service`, 상세 메서드의 `@Transactional` | 조회수 증가와 상세 조회를 조합하는 전체 트랜잭션 |
+| `PostPersistenceAdapter` | `@Component`, `@RequiredArgsConstructor` | LoadPostPort·SavePostPort의 공유 JPA 구현 |
 | `GlobalExceptionHandler` | `@RestControllerAdvice`, `@ExceptionHandler` | 도메인·MVC 예외를 공통 HTTP 실패 응답으로 변환 |
 | `ApiErrorController` | `@RestController` | 서블릿 오류 디스패치를 공통 JSON 응답으로 변환 |
 
 PostPersistenceAdapter는 Lombok의 @RequiredArgsConstructor가 final 필드의 생성자를 생성합니다.
 생성자가 하나인 컴포넌트는 생성자로 의존성을 주입받습니다.
 서비스는 구체 저장소 대신 포트 인터페이스에 의존합니다. Spring이 같은 저장소 Bean을
-LoadPostPort와 SavePostPort에 주입하므로 Command의 변경 결과를 Query에서 조회할 수 있습니다.
+LoadPostPort·SavePostPort에 주입하므로 Command의 변경 결과와 상세 조회수 증가를 같은 DB에서 처리합니다.
 포트 인터페이스, 도메인, DTO는 Spring Bean으로 등록하지 않습니다.
 운영 코드에는 수동 객체 조립 팩토리가 없습니다. 컨트롤러 단위 테스트는 테스트 내부에서 독립된 저장소와 서비스를 구성합니다.
 
@@ -32,6 +33,9 @@ flowchart LR
     MVC --> QC[PostQueryController]
     CC --> CS[PostCommandUseCase / PostCommandService]
     QC --> QS[PostQueryUseCase / PostQueryService]
+    QC --> PF[PostFacade: 상세 열람]
+    PF --> CS
+    PF --> QS
     CS --> Load[LoadPostPort]
     CS --> Save[SavePostPort]
     QS --> Load
@@ -173,7 +177,9 @@ Post.update는 제목·본문을 모두 검증한 뒤 필드를 바꾸므로 검
 수정·삭제는 서비스에서 대상을 조회하고, 없으면 POST_NOT_FOUND를 던집니다.
 수정에는 별도 save 호출·수정 출력 포트·벌크 UPDATE 쿼리를 사용하지 않습니다.
 삭제는 조회한 엔티티를 SavePostPort.delete에 전달하고 어댑터가 JpaRepository.delete를 호출합니다.
-애플리케이션 트랜잭션 경계는 서비스에 두며 Query 서비스는 읽기 전용입니다.
+Command는 쓰기, Query는 순수 조회를 담당합니다. 두 흐름을 조합하는 상세 열람은 Facade의 쓰기 트랜잭션으로 묶습니다.
+Facade에서 호출하는 Command·Query 서비스는 기본 REQUIRED 전파에 따라 같은 트랜잭션에 참여합니다.
+Query 서비스의 readOnly 설정이 이미 시작한 Facade의 쓰기 트랜잭션을 읽기 전용으로 바꾸지는 않습니다.
 저장소 호출은 진행 중인 서비스 트랜잭션에 참여합니다. 서비스 밖에서 Repository의 save/delete를 직접
 호출하면 Spring Data의 해당 메서드 트랜잭션이 적용되지만, 이것이 조회·수정 전체를 대신하지는 않습니다.
 
@@ -181,14 +187,45 @@ ID는 PostgreSQL identity 컬럼이 자동 생성해 서버 재시작이나 다�
 중복되지 않습니다. 별도의 ID 발급 포트·구현체·nextval 호출은 없습니다. 실패나 롤백 시에도 시퀀스 값이 소비될 수 있어 연속 번호는 보장하지 않습니다.
 트랜잭션은 작업의 커밋·롤백을 묶지만 동시 수정 충돌을 방지하지는 않습니다.
 현재 @Version이나 명시적인 잠금은 없으므로 동시 수정 시 이전 변경을 덮어쓸 수 있습니다.
-POST_NOT_FOUND는 조회 시점의 부재를 의미하며, 조회 이후 동시 삭제의 결과를 이전처럼 행 수로 판별하지 않습니다.
+상세 조회는 조회수 UPDATE의 반영 행 수가 0이면 POST_NOT_FOUND를 반환합니다. 수정·삭제는 대상 조회로 존재 여부를 확인합니다.
 
-`Post`의 어노테이션과 개발용 JPA ddl-auto=update로 Hibernate가 테이블을 생성·갱신합니다.
-테스트는 ddl-auto=create-drop을 사용합니다. 스키마 SQL 스크립트는 사용하지 않습니다.
+스키마는 Flyway의 버전별 SQL로 관리하고 운영·테스트의 JPA는 ddl-auto=validate로 매핑을 검증합니다.
+V1은 테이블 생성, V2는 조회수 컬럼 추가를 담당합니다.
 비밀번호는 환경변수로 설정합니다.
 메모리 저장소는 src/test 아래에서 단위 테스트 대역으로만 사용합니다.
 대역은 같은 엔티티 참조를 반환해 변경 결과를 관찰하며, JPA 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트로 검증합니다.
 엔티티의 ID·필드 복원은 JPA에 맡기며, 수동 ID 생성자나 저장소 복원용 팩터리는 제공하지 않습니다.
+
+## 조회수
+
+조회 응답의 `viewCount`는 기존·신규 게시글 모두 0부터 시작합니다.
+`GET /posts/{id}` 성공마다 1 증가하고 증가한 값을 반환하며 목록 조회는 값을 변경하지 않습니다.
+같은 사용자의 반복 요청도 매번 집계합니다.
+
+HTTP 상세 조회는 `PostFacade.getPostDetail()`을 호출합니다. Facade는
+`PostCommandUseCase.increaseViewCount()`로 DB에서 `view_count = view_count + 1`을 실행한 뒤
+`PostQueryUseCase.getPost()`로 게시글을 읽습니다. Command는 `SavePostPort`, Query는 `LoadPostPort`만 사용합니다.
+두 작업은 동일 트랜잭션이며 후속 조회에 실패하면 앞선 조회수 증가도 롤백됩니다.
+내부에서 `PostQueryUseCase.getPost()`만 호출하면 조회수는 증가하지 않습니다.
+동시 요청의 누락을 방지하고, 벌크 UPDATE 후 영속성 컨텍스트를 비워 최신 값을 읽습니다.
+`view_count`는 `updatable = false`로 일반 엔티티 UPDATE에서 제외하므로,
+오래된 엔티티로 제목·본문을 수정해도 다른 요청이 증가시킨 조회수를 덮어쓰지 않습니다.
+이는 제목·본문 자체의 동시 수정 충돌까지 해결하는 것은 아닙니다.
+
+`PostViewCountTest`는 HTTP 응답, 목록 조회의 비증가, 없는 게시글, 트랜잭션 롤백,
+동시 상세 조회 40건 및 오래된 엔티티의 본문 수정이 조회수를 덮어쓰지 않는지 검증합니다.
+`PostFacadeTransactionTest`는 Command 증가 후 Query가 실패할 때 전체 롤백을 검증합니다.
+실제 PostgreSQL의 임시 V1 DB에서도 V2 전환과 HTTP 동시 조회를 검증했으며,
+기존 게시글 보존과 조회수 0, 2회 조회 후 2, 추가 동시 40회 후 42를 확인했습니다.
+
+상세 열람은 기존 Command·Query 입력 포트를 조합하므로 별도의 Detail 입력 포트를 만들지 않습니다.
+컨트롤러는 단일 흐름에 입력 포트를, 복합 흐름에 구체 Facade를 사용합니다.
+별도 구현 교체나 외부 계약 분리가 실제로 필요해지면 Facade 입력 포트 도입을 검토합니다.
+향후 중복 조회 방지가 필요하면 Facade가 사용자·세션 기반 집계 정책에 판단을 요청하고, 실제 증가는 Command에 맡깁니다.
+조회수 저장 방식을 바꾸면 `SavePostPort`의 조회수 증가 구현과 응답의 조회수 읽기 방식을 함께 검토합니다.
+저장·삭제와 조회수의 저장소 또는 사용처가 달라지면 그때 조회수 전용 출력 포트를 분리할 수 있습니다.
+다른 도메인의 카운터를 추가할 때에도 도메인 전용 포트로 책임을 유지하고,
+실제로 공통 정책이 생길 때 공통화 범위를 판단합니다.
 
 ## 클라이언트와 테스트
 
@@ -220,7 +257,8 @@ PostDatabaseTest는 서비스 수정의 커밋·메타데이터 유지, 도메�
 기본 주소는 `http://localhost:8080`이며 실행 설정은 `src/main/resources/application.yml`입니다.
 DB_URL 기본값은 `jdbc:postgresql://localhost:5432/assignment`, DB_USERNAME은 JVM의 OS 사용자 이름,
 DB_PASSWORD는 빈 값입니다. 환경변수로 실제 연결·인증 설정을 지정합니다.
-개발 환경은 `ddl-auto: update`, 자동 테스트는 독립된 H2 DB와 `create-drop`을 사용합니다.
+스키마 변경은 Flyway 마이그레이션으로 관리하며 개발·테스트 모두 `ddl-auto: validate`로 매핑을 검증합니다.
+자동 테스트는 독립된 H2 DB를 사용합니다.
 
 ```bash
 ./gradlew test bootJar
