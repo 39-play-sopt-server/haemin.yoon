@@ -1,5 +1,6 @@
 package org.sopt.post.adapter.in.web.dto.response;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import org.sopt.post.adapter.in.web.dto.PostCategory;
 import org.sopt.post.domain.Post;
@@ -9,12 +10,13 @@ import org.sopt.post.domain.Post;
  * 바뀌지 않습니다.
  */
 public record PostResponse(
-    long id,
-    String title,
-    String content,
-    PostCategory category,
-    String author,
-    LocalDateTime createdAt) {
+    @Schema(description = "게시글 ID", example = "1") long id,
+    @Schema(description = "제목", example = "첫 게시글") String title,
+    @Schema(description = "본문", example = "Scalar에서 API를 테스트합니다.") String content,
+    @Schema(description = "게시글 분류", example = "QUESTION") PostCategory category,
+    @Schema(description = "작성자", example = "홍길동") String author,
+    @Schema(description = "서버 로컬 기준 작성 시각. 타임존 정보 없음", example = "2026-10-13T12:00:00")
+        LocalDateTime createdAt) {
   /**
    * 도메인의 값을 응답으로 복사합니다. 외부용 DTO가 도메인을 참조하므로 의존성은 내부를 향합니다. 변환 규칙을 결과 DTO와 함께 두어 컨트롤러는 유스케이스 호출과 응답
    * 처리 흐름에 집중합니다.

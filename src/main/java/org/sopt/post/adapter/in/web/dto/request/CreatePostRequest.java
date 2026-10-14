@@ -1,5 +1,6 @@
 package org.sopt.post.adapter.in.web.dto.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.sopt.post.adapter.in.web.dto.PostCategory;
@@ -9,7 +10,7 @@ import org.sopt.post.adapter.in.web.dto.PostCategory;
  * 어댑터 안에 두어 애플리케이션이 외부 요청 형식에 의존하지 않게 합니다.
  */
 public record CreatePostRequest(
-    @NotBlank String title,
-    @NotBlank String content,
-    @NotNull PostCategory category,
-    @NotBlank String author) {}
+    @NotBlank @Schema(description = "제목", example = "첫 게시글") String title,
+    @NotBlank @Schema(description = "본문", example = "Scalar에서 API를 테스트합니다.") String content,
+    @NotNull @Schema(description = "게시글 분류", example = "QUESTION") PostCategory category,
+    @NotBlank @Schema(description = "작성자", example = "홍길동") String author) {}

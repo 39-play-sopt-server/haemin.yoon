@@ -1,5 +1,6 @@
 package org.sopt.global.exception;
 
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /** MVC 밖의 서블릿 오류 디스패치도 Boot 기본 HTML/Map 대신 공통 응답으로 처리합니다. */
+@Hidden
 @RestController
 public class ApiErrorController implements ErrorController {
   private static final Logger LOGGER = LoggerFactory.getLogger(ApiErrorController.class);

@@ -1,6 +1,7 @@
 package org.sopt.global.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import org.sopt.global.exception.ErrorCode;
 
@@ -10,7 +11,12 @@ import org.sopt.global.exception.ErrorCode;
  */
 @JsonInclude(JsonInclude.Include.ALWAYS)
 public record BaseResponse<T>(
-    boolean success, String code, String message, T data, List<ValidationViolation> violations) {
+    @Schema(description = "요청 성공 여부", example = "true") boolean success,
+    @Schema(description = "성공은 SUCCESS, 실패는 오류 코드", example = "SUCCESS") String code,
+    @Schema(description = "처리 결과 안내") String message,
+    @Schema(description = "조회 결과. 생성·수정·삭제 및 실패 응답에서는 null") T data,
+    @Schema(description = "필드별 검증 오류. 성공과 일반 오류 응답에서는 빈 배열", example = "[]")
+        List<ValidationViolation> violations) {
   /** 기존 성공·일반 실패 응답의 생성 경로는 빈 검증 목록을 사용합니다. */
   public BaseResponse(boolean success, String code, String message, T data) {
     this(success, code, message, data, List.of());

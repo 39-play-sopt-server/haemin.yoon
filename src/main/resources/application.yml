@@ -12,3 +12,18 @@ spring:
     default-schema: public
     baseline-on-migrate: false
     clean-disabled: true
+
+springdoc:
+  packages-to-scan: org.sopt
+  override-with-generic-response: false
+
+scalar:
+  enabled: true
+  url: /v3/api-docs
+  path: /scalar
+  theme: DEEP_SPACE
+  show-operation-id: true
+  operation-title-source: summary
+  default-open-first-tag: false
+  schema-property-order: alpha
+  dark-mode: true
