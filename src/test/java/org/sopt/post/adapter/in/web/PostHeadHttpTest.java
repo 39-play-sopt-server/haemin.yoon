@@ -49,6 +49,7 @@ class PostHeadHttpTest {
     for (int i = 0; i < 2; i++) {
       var response = head(id, null);
       assertEquals(200, response.statusCode());
+      assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow());
       assertTrue(
           response
               .headers()
@@ -64,6 +65,18 @@ class PostHeadHttpTest {
     assertEquals(1L, storedCount(id));
     assertEquals(200, head(id, "application/json").statusCode());
     assertEquals(1L, storedCount(id));
+  }
+
+  @Test
+  void detailGetDisablesCachingAndCountsRepeatedRequests() throws Exception {
+    long id = createStoredPost();
+
+    for (long count = 1; count <= 2; count++) {
+      var response = client.send(request(id).GET().build(), HttpResponse.BodyHandlers.ofString());
+      assertEquals(200, response.statusCode());
+      assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow());
+      assertEquals(count, storedCount(id));
+    }
   }
 
   @Test

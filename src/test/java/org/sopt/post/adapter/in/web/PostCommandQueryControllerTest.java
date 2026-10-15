@@ -76,7 +76,7 @@ class PostCommandQueryControllerTest {
     mvc.perform(put("/posts/1").contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-    assertEquals("제목", queries.getPost(1).data().title());
+    assertEquals("제목", queries.getPost(1).getBody().data().title());
   }
 
   @Test
@@ -88,14 +88,14 @@ class PostCommandQueryControllerTest {
                 .content("{\"title\":\"새 제목\",\"content\":\" \",\"version\":0}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
-    assertEquals("제목", queries.getPost(1).data().title());
-    assertEquals("본문", queries.getPost(1).data().content());
+    assertEquals("제목", queries.getPost(1).getBody().data().title());
+    assertEquals("본문", queries.getPost(1).getBody().data().content());
   }
 
   @Test
   void responseSnapshotsRemainUnchangedAfterHttpMutations() throws Exception {
     createPost();
-    var original = queries.getPost(1).data();
+    var original = queries.getPost(1).getBody().data();
     var list = queries.getPosts(0, 100, null).data();
     assertThrows(UnsupportedOperationException.class, list::clear);
     mvc.perform(
@@ -105,7 +105,7 @@ class PostCommandQueryControllerTest {
         .andExpect(status().isOk());
     assertEquals("제목", original.title());
     assertEquals("본문", list.getFirst().content());
-    assertEquals(original.createdAt(), queries.getPost(1).data().createdAt());
+    assertEquals(original.createdAt(), queries.getPost(1).getBody().data().createdAt());
     mvc.perform(delete("/posts/1")).andExpect(status().isOk());
     assertEquals(1, list.size());
     mvc.perform(get("/posts/1")).andExpect(status().isNotFound());
