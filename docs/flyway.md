@@ -93,6 +93,9 @@ export DB_USERNAME="$(whoami)"
 - `FlywayMigrationTest`는 기존 테이블의 자동 등록 거부와 명시적 baseline 후
   기존 게시글 보존, V1 생략, V2 적용 후 조회수 0과 V3 적용 이력을 H2 PostgreSQL 모드에서 검증한다.
 - H2 검증은 실제 PostgreSQL 검증을 대체하지 않는다.
+- `./gradlew postgresTest`는 임시 PostgreSQL에서 빈 DB 마이그레이션과 명시적 baseline 이후
+  기존 데이터 보존·V2~V3 적용·재실행 시 추가 적용 없음까지 검증한다.
+  실행 환경과 검증 범위는 [PostgreSQL 통합 테스트](postgresql-tests.md)를 참고한다.
 
 ### 2026-10-13 로컬 검증 결과
 

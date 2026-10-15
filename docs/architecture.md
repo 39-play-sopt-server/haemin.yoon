@@ -269,7 +269,10 @@ HTTP 상세 조회는 `PostFacade.getPostDetail()`을 호출합니다. Facade는
 현재 생성·상세 조회의 동시성 보장은 기존 구현을 유지하고 테스트로 보강했습니다.
 `PostCreationConcurrencyTest`는 8개 작업자의 HTTP 생성 40건이 유실·ID 중복 없이 저장되는지 확인하고,
 `PostViewCountTest`는 상세 열람 40건의 최종 조회수와 각 반환값이 정확히 1~40인지 확인합니다.
-이 자동 테스트는 H2 PostgreSQL 모드 기반이며, 운영 PostgreSQL의 부하·잠금 대기까지 검증하지는 않습니다.
+위 테스트는 H2 PostgreSQL 모드 기반입니다. 별도 `postgresTest`는 임시 PostgreSQL 18.2에서
+동시 HTTP 생성·조회, 오래된 본문 수정과 조회수 증가의 교차 실행, 행별 잠금 범위와 롤백을 검증합니다.
+운영 부하 수준의 처리량·잠금 대기는 측정하지 않습니다.
+실행 방법과 검증 범위는 [PostgreSQL 통합 테스트](postgresql-tests.md)를 참고하세요.
 벌크 UPDATE 전 `flushAutomatically = true`로 대기 중인 변경을 반영하고,
 영속성 어댑터에서 `EntityManager.getReference()`로 대상 참조를 얻고,
 해당 게시글만 `EntityManager.refresh()`로 다시 읽습니다.
@@ -334,7 +337,7 @@ PostDatabaseTest는 서비스 수정의 커밋·메타데이터 유지, 도메�
 DB_URL 기본값은 `jdbc:postgresql://localhost:5432/assignment`, DB_USERNAME은 JVM의 OS 사용자 이름,
 DB_PASSWORD는 빈 값입니다. 환경변수로 실제 연결·인증 설정을 지정합니다.
 스키마 변경은 Flyway 마이그레이션으로 관리하며 개발·테스트 모두 `ddl-auto: validate`로 매핑을 검증합니다.
-자동 테스트는 독립된 H2 DB를 사용합니다.
+일반 `test`는 독립된 H2 DB를 사용하고, `postgresTest`는 Docker의 임시 PostgreSQL을 사용합니다.
 
 ```bash
 ./gradlew test bootJar

@@ -17,6 +17,7 @@ Spring Boot HTTP 서버 기준으로 구현 위치와 검증 방법을 정리합
 | 목록 페이지네이션 | PostListQuery의 범위 검증, DB OFFSET/LIMIT, 기본 page=0·size=20, size 최대 100 | PostListingTest |
 | 카테고리별 목록 | 선택적 category 필터링 후 페이지 조회, V3의 category·id 인덱스 | PostListingTest, FlywayMigrationTest |
 | 동시 생성·상세 조회 | 기존 DB identity와 조회수 원자적 UPDATE·상세 트랜잭션 유지, 동시성 검증 보강 | PostCreationConcurrencyTest의 HTTP 생성 40건, PostViewCountTest의 상세 조회 40건 및 반환값 1~40 |
+| 실제 PostgreSQL 검증 | 임시 컨테이너의 동시 생성·조회, 수정 교차 실행, 행별 잠금·롤백, Flyway 전환 | postgresTest의 PostgreSqlPostIntegrationTest |
 | 없는 게시글 예외 처리 | PostException과 POST_NOT_FOUND, HTTP 404 응답 | PostHttpApiTest |
 | 잘못된 요청 형식 처리 | GlobalExceptionHandler의 JSON·경로 ID 변환 오류 처리 | PostHttpApiTest, GlobalExceptionHandlerTest |
 | 공통 응답과 예외 처리 | BaseResponse의 다섯 필드, ErrorCode의 상태 선언, GlobalExceptionHandler의 MVC 응답 변환 | BaseResponseTest, GlobalExceptionHandlerTest, PostHttpApiTest |
@@ -57,7 +58,7 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 
 ## 구현 범위의 한계
 
-- PostgreSQL에 게시글과 identity 상태를 저장하므로 서버 재시작 후에도 유지됩니다. 자동 테스트는 별도 H2 메모리 DB를 사용합니다.
+- PostgreSQL에 게시글과 identity 상태를 저장하므로 서버 재시작 후에도 유지됩니다. 일반 test는 H2, postgresTest는 임시 PostgreSQL 컨테이너를 사용합니다.
 - 서비스 트랜잭션으로 조회·수정·삭제를 묶습니다. @Version이나 명시적 잠금이 없어 동시 수정 충돌은 감지하지 않습니다.
 - 조회 후 다른 요청이 삭제한 경우를 벌크 쿼리의 행 수로 판별하는 계약은 사용하지 않습니다.
 - 저장 실패나 롤백에도 DB가 생성한 ID는 소비될 수 있으며 연속 번호를 보장하지 않습니다.
@@ -65,5 +66,5 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 - 성공 코드는 SUCCESS 고정이며 SuccessCode Enum, 중첩 error 객체, 외부 ProblemDetail 응답은 도입하지 않았습니다.
 - requestId·traceId와 로그 연동, 인증·인가, 요청 횟수 제한 기능은 구현하지 않았습니다.
 - offset 페이지네이션은 동시 삭제 시 페이지 사이 결과 이동을 허용하고 총 개수·총 페이지 수를 제공하지 않습니다.
-- 동시성 자동 테스트는 H2 기반이며 운영 PostgreSQL 부하·잠금 대기는 별도 검증이 필요합니다.
+- PostgreSQL의 동시성 정합성·행별 잠금·롤백을 자동 검증하지만, 운영 규모 부하·잠금 대기 측정은 별도 검증이 필요합니다.
 - 필드별 검증 목록은 생성·수정 요청 본문에 적용합니다. 길이는 UTF-16 코드 단위이며 기존 DB의 대형 본문은 축약하지 않습니다. 경로 ID의 양수 제약은 추가하지 않았습니다.
