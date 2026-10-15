@@ -50,7 +50,7 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 | 메서드 | 경로 | 동작 | 성공 상태 |
 | --- | --- | --- | --- |
 | POST | `/posts` | 게시글 생성 | 201 |
-| GET | `/posts` | ID 오름차순 목록 조회 | 200 |
+| GET | `/posts` | page·size 페이지네이션과 선택적 category 필터, ID 오름차순 | 200 |
 | GET | `/posts/{id}` | 단건 조회 | 200 |
 | PUT | `/posts/{id}` | 제목·본문 수정 | 200 |
 | DELETE | `/posts/{id}` | 게시글 삭제 | 200 |
@@ -61,6 +61,8 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 
 - 생성 요청은 title, content, category, author가 필수다. 문자열은 공백만 입력할 수 없다.
 - category는 GENERAL, QUESTION, INFORMATION 중 하나다.
+- 목록 조회는 page=0, size=20이 기본값이며 size는 1~100이다. category를 생략하거나 비우면 전체 분류를 조회한다.
+  카테고리 필터링 후 페이지를 나누며 마지막 페이지를 넘으면 빈 배열을 반환한다.
 - 수정은 title과 content를 함께 전달하며 작성자·카테고리·작성 시각은 유지한다.
 - 응답은 success, code, message, data, violations 필드를 갖는다.
 - 목록의 data는 배열, 단건 조회는 객체, 생성·수정·삭제 및 오류 응답은 null이다.
@@ -77,12 +79,13 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
   실제 응답 계약과 동일한 오류 예시를 생성한다.
 - `post/adapter/in/web/docs/PostOpenApiConfig`: `OpenApiCustomizer`로
   게시글 전용 응답을 추가한다. 전역 설정은 게시글 설정에 의존하지 않는다.
+  - `PostListBadRequest`: 목록의 page·size 범위 오류, 숫자·카테고리 형식 오류.
   - `InvalidPostId`: 단건 조회·삭제의 ID 형식 오류.
   - `PostCreateBadRequest`: 생성의 필수 필드 검증, JSON·카테고리 오류.
   - `PostUpdateBadRequest`: 수정의 제목·본문 검증, ID·JSON 오류.
   - `PostNotFound`: 존재하지 않는 게시글.
   생성·수정의 400에는 `ValidationFailed`, `InvalidRequest` 이름으로 각각 예시를 제공한다.
-  각 컨트롤러는 자신에게 필요한 응답만 참조하며 목록 조회에는 400을 등록하지 않는다.
+  목록의 400에는 `InvalidPagination`, `InvalidRequest` 예시를 제공한다. 각 컨트롤러는 자신에게 필요한 응답만 참조한다.
 - 컨트롤러는 `#/components/responses/PostNotFound` 참조를 유지한다.
 
 회원 도메인을 추가한다면 회원 웹 어댑터에 문서 설정을 두고 `UserNotFound`처럼

@@ -13,6 +13,9 @@ Spring Boot HTTP 서버 기준으로 구현 위치와 검증 방법을 정리합
 | 빈 제목·본문 금지 | @Valid 요청 DTO 검증 + Post의 생성·수정 검증 | PostCommandQueryServiceTest, PostCommandQueryControllerTest, PostHttpApiTest |
 | 필드별 입력 오류 | VALIDATION_FAILED와 정렬된 violations 목록, 입력값·내부 메시지 비노출 | PostHttpApiTest, GlobalExceptionHandlerTest |
 | 필수 카테고리·작성자와 작성 시각 | Category와 Post, 요청·응답 DTO 변환 | 서비스·HTTP 테스트 |
+| 목록 페이지네이션 | PostListQuery의 범위 검증, DB OFFSET/LIMIT, 기본 page=0·size=20, size 최대 100 | PostListingTest |
+| 카테고리별 목록 | 선택적 category 필터링 후 페이지 조회, V3의 category·id 인덱스 | PostListingTest, FlywayMigrationTest |
+| 동시 생성·상세 조회 | 기존 DB identity와 조회수 원자적 UPDATE·상세 트랜잭션 유지, 동시성 검증 보강 | PostCreationConcurrencyTest의 HTTP 생성 40건, PostViewCountTest의 상세 조회 40건 및 반환값 1~40 |
 | 없는 게시글 예외 처리 | PostException과 POST_NOT_FOUND, HTTP 404 응답 | PostHttpApiTest |
 | 잘못된 요청 형식 처리 | GlobalExceptionHandler의 JSON·경로 ID 변환 오류 처리 | PostHttpApiTest, GlobalExceptionHandlerTest |
 | 공통 응답과 예외 처리 | BaseResponse의 다섯 필드, ErrorCode의 상태 선언, GlobalExceptionHandler의 MVC 응답 변환 | BaseResponseTest, GlobalExceptionHandlerTest, PostHttpApiTest |
@@ -60,4 +63,6 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 - 작성 시각은 실행 환경의 로컬 시간을 사용하며 Clock 주입은 적용하지 않았습니다.
 - 성공 코드는 SUCCESS 고정이며 SuccessCode Enum, 중첩 error 객체, 외부 ProblemDetail 응답은 도입하지 않았습니다.
 - requestId·traceId와 로그 연동, 인증·인가, 요청 횟수 제한 기능은 구현하지 않았습니다.
+- offset 페이지네이션은 동시 삭제 시 페이지 사이 결과 이동을 허용하고 총 개수·총 페이지 수를 제공하지 않습니다.
+- 동시성 자동 테스트는 H2 기반이며 운영 PostgreSQL 부하·잠금 대기는 별도 검증이 필요합니다.
 - 필드별 검증 목록은 현재 생성·수정 요청 본문에 적용합니다. 경로 ID의 양수 제약이나 길이 제한은 추가하지 않았습니다.

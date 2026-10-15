@@ -190,11 +190,41 @@ ID는 PostgreSQL identity 컬럼이 자동 생성해 서버 재시작이나 다�
 상세 조회는 조회수 UPDATE의 반영 행 수가 0이면 POST_NOT_FOUND를 반환합니다. 수정·삭제는 대상 조회로 존재 여부를 확인합니다.
 
 스키마는 Flyway의 버전별 SQL로 관리하고 운영·테스트의 JPA는 ddl-auto=validate로 매핑을 검증합니다.
-V1은 테이블 생성, V2는 조회수 컬럼 추가를 담당합니다.
+V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스 추가를 담당합니다.
 비밀번호는 환경변수로 설정합니다.
 메모리 저장소는 src/test 아래에서 단위 테스트 대역으로만 사용합니다.
 대역은 같은 엔티티 참조를 반환해 변경 결과를 관찰하며, JPA 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트로 검증합니다.
 엔티티의 ID·필드 복원은 JPA에 맡기며, 수동 ID 생성자나 저장소 복원용 팩터리는 제공하지 않습니다.
+
+## 목록 페이지네이션과 카테고리 조회
+
+`GET /posts?page=0&size=20&category=QUESTION`으로 한 페이지를 조회합니다.
+page는 0부터 시작하고 기본값은 0, size의 기본값은 20이며 1~100을 허용합니다.
+숫자가 아닌 값과 int 범위 밖의 숫자, 알 수 없는 category는 HTTP 400과 INVALID_REQUEST입니다.
+음수 page·허용 범위 밖 size·int 범위를 넘는 `page * size`는 INVALID_PAGINATION입니다.
+JPA의 offset이 int이므로 곱셈은 long으로 검사하여 오버플로와 저장소 예외를 방지합니다.
+생략하거나 빈 값으로 보낸 page·size는 기본값을 사용하고, category는 전체 분류를 조회합니다.
+
+웹 어댑터는 외부 PostCategory를 도메인 Category로 변환하고,
+`PostListQuery`가 HTTP 외 호출에서도 조회 범위를 검증합니다.
+입력·출력 포트는 이 조회 조건을 공유하며 Spring Data 타입에 의존하지 않습니다.
+`PostPersistenceAdapter`에서만 PageRequest로 변환합니다.
+카테고리 조건 유무에 따라 저장소 메서드를 선택하고,
+DB에서 WHERE → ORDER BY id ASC → OFFSET/LIMIT 순서로 처리합니다.
+전체 데이터를 메모리에 올려 자르지 않으며 ID의 고유한 순서로 페이지 경계를 정합니다.
+전체 조회는 PK, 카테고리 조회는 V3의 `(category, id)` 복합 인덱스를 활용할 수 있습니다.
+
+기존 `data` 배열 계약을 유지하고 총 개수·총 페이지 수는 제공하지 않습니다.
+요청한 페이지에 결과가 없으면 HTTP 200과 빈 배열을 반환합니다.
+List를 반환하는 저장소 메서드를 사용하므로 총 개수를 위한 COUNT 쿼리는 실행하지 않습니다.
+페이지네이션·필터 목록 조회 모두 조회수를 변경하지 않습니다.
+`PostListingTest`는 기본값·경계·카테고리별 필터 적용 순서·빈 결과·잘못된 입력을 실제 H2 DB와 HTTP 계층에서 검증합니다.
+
+앞으로 작성자 필터를 추가한다면 PostListQuery와 게시글 저장소의 검색 조건을 확장합니다.
+조건 조합이 많아져 메서드가 반복되면 그때 Specification이나 전용 검색 저장소를 검토합니다.
+회원 목록은 회원 도메인에 조회 조건을 두고, 실제로 공유되는 계약이 생길 때 공통화를 검토합니다.
+현재 offset 방식은 깊은 페이지의 비용과 페이지 사이 삭제에 따른 결과 이동이 있습니다.
+대량 데이터에서 이 문제가 중요해지면 ID 기반 커서 페이지네이션을 별도 계약으로 도입합니다.
 
 ## 조회수
 
@@ -208,6 +238,15 @@ HTTP 상세 조회는 `PostFacade.getPostDetail()`을 호출합니다. Facade는
 두 작업은 동일 트랜잭션이며 후속 조회에 실패하면 앞선 조회수 증가도 롤백됩니다.
 내부에서 `PostQueryUseCase.getPost()`만 호출하면 조회수는 증가하지 않습니다.
 동시 요청의 누락을 방지하기 위해 DB에서 원자적으로 증가시킵니다.
+같은 게시글 행의 UPDATE부터 Facade 트랜잭션 커밋까지 DB의 행 잠금이 유지되어,
+증가와 응답용 조회가 다른 요청의 동일 행 UPDATE와 순서대로 실행됩니다.
+임계구역은 해당 게시글 행의 상세 열람 트랜잭션이며 다른 게시글의 조회는 같은 잠금으로 묶이지 않습니다.
+애플리케이션 전체 synchronized 잠금이 없어 다중 서버에서도 같은 DB를 통해 조율됩니다.
+생성은 DB identity가 ID 발급을 조율하고 각 INSERT는 독립된 트랜잭션으로 처리합니다.
+현재 생성·상세 조회의 동시성 보장은 기존 구현을 유지하고 테스트로 보강했습니다.
+`PostCreationConcurrencyTest`는 8개 작업자의 HTTP 생성 40건이 유실·ID 중복 없이 저장되는지 확인하고,
+`PostViewCountTest`는 상세 열람 40건의 최종 조회수와 각 반환값이 정확히 1~40인지 확인합니다.
+이 자동 테스트는 H2 PostgreSQL 모드 기반이며, 운영 PostgreSQL의 부하·잠금 대기까지 검증하지는 않습니다.
 벌크 UPDATE 전 `flushAutomatically = true`로 대기 중인 변경을 반영하고,
 영속성 어댑터에서 `EntityManager.getReference()`로 대상 참조를 얻고,
 해당 게시글만 `EntityManager.refresh()`로 다시 읽습니다.
@@ -284,7 +323,7 @@ curl -i http://localhost:8080/posts \
   -d '{"title":"첫 게시글","content":"본문","category":"GENERAL","author":"작성자"}'
 ```
 
-생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data 배열에서 생성된 ID를 확인합니다.
+생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data 배열에서 생성된 ID를 확인합니다. 기본적으로 첫 20건을 반환합니다.
 목록은 ID 오름차순이며, 카테고리는 GENERAL·QUESTION·INFORMATION 중 하나입니다.
 `GET /posts/{id}`로 단건 조회하고, `PUT /posts/{id}`에는 아래 JSON 본문을 보냅니다.
 
