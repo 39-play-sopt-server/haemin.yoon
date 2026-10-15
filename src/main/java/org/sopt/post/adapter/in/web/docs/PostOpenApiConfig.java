@@ -33,6 +33,7 @@ public class PostOpenApiConfig {
                 requestErrors(
                     "제목·본문·작성자는 공백일 수 없고 카테고리는 필수입니다(VALIDATION_FAILED). "
                         + "요청 스키마의 maxLength 초과 시에도 VALIDATION_FAILED를 반환하며 필드 오류 코드는 INVALID_LENGTH입니다. "
+                        + "제목·본문·작성자에 NUL(U+0000) 문자가 포함되면 NUL_CHARACTER_NOT_ALLOWED를 반환합니다. "
                         + "본문 누락, 잘못된 JSON 또는 허용되지 않은 카테고리는 INVALID_REQUEST를 반환합니다.",
                     List.of("title", "content", "category", "author")))
             .addResponses(
@@ -40,6 +41,7 @@ public class PostOpenApiConfig {
                 requestErrors(
                     "수정할 제목·본문은 공백일 수 없고 version은 필수인 0 이상 정수입니다(VALIDATION_FAILED). "
                         + "요청 스키마의 maxLength 초과 시에도 VALIDATION_FAILED를 반환하며 필드 오류 코드는 INVALID_LENGTH입니다. "
+                        + "제목·본문에 NUL(U+0000) 문자가 포함되면 NUL_CHARACTER_NOT_ALLOWED를 반환합니다. "
                         + "게시글 ID 형식 오류, 본문 누락 또는 잘못된 JSON은 INVALID_REQUEST를 반환합니다.",
                     List.of("title", "content", "version")))
             .addResponses(
@@ -74,6 +76,8 @@ public class PostOpenApiConfig {
     examples.put(
         "ValidationFailed", BaseResponse.failure(GlobalErrorCode.VALIDATION_FAILED, violations));
     examples.put("InvalidRequest", BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));
+    examples.put(
+        "NulCharacterNotAllowed", BaseResponse.failure(PostErrorCode.NUL_CHARACTER_NOT_ALLOWED));
     return OpenApiResponses.errorResponses(description, examples);
   }
 }

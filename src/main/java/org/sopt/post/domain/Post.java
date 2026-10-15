@@ -72,6 +72,7 @@ public class Post {
     if (author == null || author.isBlank()) {
       throw new PostException(PostErrorCode.INVALID_AUTHOR);
     }
+    validateNoNul(author);
     if (author.length() > MAX_AUTHOR_LENGTH) {
       throw new PostException(PostErrorCode.AUTHOR_TOO_LONG);
     }
@@ -127,6 +128,7 @@ public class Post {
     if (title == null || title.isBlank()) {
       throw new PostException(PostErrorCode.INVALID_TITLE);
     }
+    validateNoNul(title);
     if (title.length() > MAX_TITLE_LENGTH) {
       throw new PostException(PostErrorCode.TITLE_TOO_LONG);
     }
@@ -137,8 +139,16 @@ public class Post {
     if (content == null || content.isBlank()) {
       throw new PostException(PostErrorCode.INVALID_CONTENT);
     }
+    validateNoNul(content);
     if (content.length() > MAX_CONTENT_LENGTH) {
       throw new PostException(PostErrorCode.CONTENT_TOO_LONG);
+    }
+  }
+
+  /** PostgreSQL 텍스트에 저장할 수 없는 NUL을 거부하며 다른 문자나 공백은 변경하지 않습니다. */
+  private static void validateNoNul(String text) {
+    if (text.indexOf('\0') >= 0) {
+      throw new PostException(PostErrorCode.NUL_CHARACTER_NOT_ALLOWED);
     }
   }
 }

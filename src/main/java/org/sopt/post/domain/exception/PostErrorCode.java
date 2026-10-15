@@ -12,6 +12,8 @@ public enum PostErrorCode implements ErrorCode {
   POST_NOT_FOUND(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "존재하지 않는 게시글입니다."),
   INVALID_TITLE(HttpStatus.BAD_REQUEST, "INVALID_TITLE", "제목은 비어 있을 수 없습니다."),
   INVALID_CONTENT(HttpStatus.BAD_REQUEST, "INVALID_CONTENT", "본문은 비어 있을 수 없습니다."),
+  NUL_CHARACTER_NOT_ALLOWED(
+      HttpStatus.BAD_REQUEST, "NUL_CHARACTER_NOT_ALLOWED", "게시글 텍스트에는 NUL 문자를 포함할 수 없습니다."),
   TITLE_TOO_LONG(
       HttpStatus.BAD_REQUEST, "TITLE_TOO_LONG", "제목은 " + Post.MAX_TITLE_LENGTH + "자를 초과할 수 없습니다."),
   CONTENT_TOO_LONG(

@@ -22,6 +22,8 @@ import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.adapter.out.persistence.PostPersistenceAdapter;
 import org.sopt.post.application.facade.PostFacade;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
@@ -73,6 +75,74 @@ class PostgreSqlPostIntegrationTest {
   @BeforeEach
   void clearPosts() {
     jdbc.update("DELETE FROM posts");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"title", "content", "author"})
+  void nulInCreateReturns400WithoutSaving(String field) throws Exception {
+    var body = new java.util.LinkedHashMap<String, Object>();
+    body.put("title", "제목");
+    body.put("content", "본문");
+    body.put("category", "GENERAL");
+    body.put("author", "작성자");
+    body.put(field, "앞\0뒤");
+    var response =
+        mvc.perform(
+                post("/posts")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+            .andReturn()
+            .getResponse();
+    assertEquals(400, response.getStatus());
+    var envelope = json.readTree(response.getContentAsString());
+    assertFalse(envelope.get("success").booleanValue());
+    assertEquals("NUL_CHARACTER_NOT_ALLOWED", envelope.get("code").stringValue());
+    assertTrue(envelope.get("data").isNull());
+    assertEquals(0, envelope.get("violations").size());
+    assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM posts", Integer.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"title", "content"})
+  void nulInUpdateReturns400AndPreservesContentAndVersion(String field) throws Exception {
+    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
+    long id = jdbc.queryForObject("SELECT id FROM posts", Long.class);
+    var body = new java.util.LinkedHashMap<String, Object>();
+    body.put("title", "변경 제목");
+    body.put("content", "변경 본문");
+    body.put("version", 0);
+    body.put(field, "앞\0뒤");
+    var response =
+        mvc.perform(
+                put("/posts/{id}", id)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+            .andReturn()
+            .getResponse();
+    assertEquals(400, response.getStatus());
+    assertEquals(
+        "NUL_CHARACTER_NOT_ALLOWED",
+        json.readTree(response.getContentAsString()).get("code").stringValue());
+    var stored = jdbc.queryForMap("SELECT title, content, version FROM posts WHERE id = ?", id);
+    assertEquals("기존 제목", stored.get("title"));
+    assertEquals("기존 본문", stored.get("content"));
+    assertEquals(0L, stored.get("version"));
+  }
+
+  @Test
+  void validTextIncludingLiteralNulEscapeIsPreservedInPostgreSql() throws Exception {
+    String text = " 한글😀\n\t\\u0000 ";
+    var body =
+        java.util.Map.of("title", text, "content", text, "category", "GENERAL", "author", text);
+    mvc.perform(
+            post("/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(body)))
+        .andExpect(status().isCreated());
+    var stored = jdbc.queryForMap("SELECT title, content, author FROM posts");
+    assertEquals(text, stored.get("title"));
+    assertEquals(text, stored.get("content"));
+    assertEquals(text, stored.get("author"));
   }
 
   @Test
