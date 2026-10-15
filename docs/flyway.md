@@ -10,6 +10,7 @@ Hibernate의 `ddl-auto: update` 대신 버전별 SQL을 Git에서 관리한다.
 - 초기 스키마: `V1__create_posts.sql`
 - 조회수 추가: `V2__add_post_view_count.sql` (기존·신규 게시글 0, NOT NULL, 음수 금지)
 - 카테고리별 페이지 조회 인덱스: `V3__add_post_category_id_index.sql` (`category, id`)
+- 편집 버전: `V4__add_post_version.sql` (기존·신규 게시글 0, NOT NULL, 음수 금지)
 - 이력 테이블: `public.flyway_schema_history`
 - 자동 baseline은 비활성화한다. 기존 DB의 최초 등록은 별도 명령으로 수행한다.
 - `clean`은 비활성화한다.
@@ -78,9 +79,11 @@ export DB_USERNAME="$(whoami)"
 
 ## 이후 변경
 
-조회수 추가는 `V2__add_post_view_count.sql`로 적용한다. 카테고리 조회 인덱스는 V3로 적용하며 다음 스키마 변경은 `V4__설명.sql`로 추가한다. 이미 적용한 파일은
+조회수 추가는 `V2__add_post_view_count.sql`로 적용한다. 카테고리 조회 인덱스는 V3, 편집 버전은 V4로 적용하며 다음 스키마 변경은 `V5__설명.sql`로 추가한다. 이미 적용한 파일은
 수정하지 않고 새 버전을 추가한다. 기존 DB와 빈 DB 양쪽에서 변경 결과를 검증한다.
-기존 baseline 1 DB에서는 V2와 V3, 빈 DB에서는 V1부터 V3까지 순서대로 실행된다.
+기존 baseline 1 DB에서는 V2~V4, 빈 DB에서는 V1~V4까지 순서대로 실행된다.
+V4는 기존 본문과 조회수를 보존한다. 구버전 쓰기 서버와의 공존 및 클라이언트 전환 조건은
+[편집 충돌 처리](post-edit-conflicts.md#스키마와-배포)를 참고한다.
 
 ## 검증
 
@@ -91,10 +94,10 @@ export DB_USERNAME="$(whoami)"
 - 테스트 프로필도 `ddl-auto: validate`를 사용한다. Flyway가 테이블을 생성해야
   기존 게시글 저장·조회 테스트가 실행된다.
 - `FlywayMigrationTest`는 기존 테이블의 자동 등록 거부와 명시적 baseline 후
-  기존 게시글 보존, V1 생략, V2 적용 후 조회수 0과 V3 적용 이력을 H2 PostgreSQL 모드에서 검증한다.
+  기존 게시글 보존, V1 생략, V2 적용 후 조회수 0과 V3~V4 적용 이력·편집 버전 0을 H2 PostgreSQL 모드에서 검증한다.
 - H2 검증은 실제 PostgreSQL 검증을 대체하지 않는다.
 - `./gradlew postgresTest`는 임시 PostgreSQL에서 빈 DB 마이그레이션과 명시적 baseline 이후
-  기존 데이터 보존·V2~V3 적용·재실행 시 추가 적용 없음까지 검증한다.
+  기존 데이터 보존·V2~V4 적용·V3 데이터의 V4 전환·재실행 시 추가 적용 없음까지 검증한다.
   실행 환경과 검증 범위는 [PostgreSQL 통합 테스트](postgresql-tests.md)를 참고한다.
 
 ### 2026-10-13 로컬 검증 결과

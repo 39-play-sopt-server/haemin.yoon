@@ -117,7 +117,9 @@ Boot 기본 HTML/Map 대신 같은 응답 객체를 사용하고 서버의 오�
 
 `spring-boot-starter-validation`과 요청 DTO의 `@NotBlank`·`@NotNull`, 생성·수정 컨트롤러의 `@Valid`로
 HTTP 입력의 필수값을 검사합니다. 여러 필드 오류를 모아 `VALIDATION_FAILED`로 반환하며 유스케이스 호출을 막습니다.
-생성 요청은 title·content·author에 NotBlank, category에 NotNull을 적용하고, 수정 요청은 title·content에 NotBlank를 적용합니다.
+생성 요청은 title·content·author에 NotBlank, category에 NotNull을 적용합니다.
+수정 요청은 title·content에 NotBlank, 필수 version에 NotNull·PositiveOrZero를 적용합니다.
+정수 필드로 보낸 소수는 Jackson에서 절삭하지 않고 INVALID_REQUEST로 거부합니다.
 검증은 컨트롤러 호출 전에 실행됩니다. 따라서 없는 게시글을 수정하더라도 본문이 유효하지 않으면
 게시글 조회의 404보다 입력 검증의 400을 먼저 반환합니다. 빈 JSON 객체 `{}`도 필수값 검증 대상이며,
 빈 본문·JSON의 `null`·깨진 JSON은 역직렬화 또는 필수 본문 처리 단계의 INVALID_REQUEST입니다.
@@ -201,12 +203,13 @@ Query 서비스의 readOnly 설정이 이미 시작한 Facade의 쓰기 트랜�
 
 ID는 PostgreSQL identity 컬럼이 자동 생성해 서버 재시작이나 다중 서버 실행에도
 중복되지 않습니다. 별도의 ID 발급 포트·구현체·nextval 호출은 없습니다. 실패나 롤백 시에도 시퀀스 값이 소비될 수 있어 연속 번호는 보장하지 않습니다.
-트랜잭션은 작업의 커밋·롤백을 묶지만 동시 수정 충돌을 방지하지는 않습니다.
-현재 @Version이나 명시적인 잠금은 없으므로 동시 수정 시 이전 변경을 덮어쓸 수 있습니다.
+트랜잭션은 작업의 커밋·롤백을 묶고, 동시 수정은 요청의 예상 버전 검사와 JPA @Version으로 보호합니다.
+사전 검사와 커밋 단계의 낙관적 잠금 충돌은 같은 HTTP 409·CONFLICT로 반환합니다.
+오래된 편집 화면·커밋 경합·조회수와의 분리 및 배포 조건은 [편집 충돌 처리](post-edit-conflicts.md)를 참고하세요.
 상세 조회는 조회수 UPDATE의 반영 행 수가 0이면 POST_NOT_FOUND를 반환합니다. 수정·삭제는 대상 조회로 존재 여부를 확인합니다.
 
 스키마는 Flyway의 버전별 SQL로 관리하고 운영·테스트의 JPA는 ddl-auto=validate로 매핑을 검증합니다.
-V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스 추가를 담당합니다.
+V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스, V4는 편집 버전 추가를 담당합니다.
 비밀번호는 환경변수로 설정합니다.
 메모리 저장소는 src/test 아래에서 단위 테스트 대역으로만 사용합니다.
 대역은 같은 엔티티 참조를 반환해 변경 결과를 관찰하며, JPA 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트로 검증합니다.
@@ -284,7 +287,7 @@ HTTP 상세 조회는 `PostFacade.getPostDetail()`을 호출합니다. Facade는
 갱신 범위가 넓어지는지 함께 검토해야 합니다.
 `view_count`는 `updatable = false`로 일반 엔티티 UPDATE에서 제외하므로,
 오래된 엔티티로 제목·본문을 수정해도 다른 요청이 증가시킨 조회수를 덮어쓰지 않습니다.
-이는 제목·본문 자체의 동시 수정 충돌까지 해결하는 것은 아닙니다.
+제목·본문 자체의 동시 수정 충돌은 별도의 예상 버전 검사와 @Version으로 처리합니다.
 
 `PostViewCountTest`는 HTTP 응답, 목록 조회의 비증가, 없는 게시글, 트랜잭션 롤백,
 동시 상세 조회 40건 및 오래된 엔티티의 본문 수정이 조회수를 덮어쓰지 않는지 검증합니다.
@@ -355,9 +358,10 @@ curl -i http://localhost:8080/posts \
 생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data 배열에서 생성된 ID를 확인합니다. 기본적으로 첫 20건을 반환합니다.
 목록은 ID 오름차순이며, 카테고리는 GENERAL·QUESTION·INFORMATION 중 하나입니다.
 `GET /posts/{id}`로 단건 조회하고, `PUT /posts/{id}`에는 아래 JSON 본문을 보냅니다.
+version은 예시의 0을 고정해서 쓰지 않고 실제 조회 응답에서 읽은 값을 전달합니다.
 
 ```json
-{"title":"수정한 제목","content":"수정한 본문"}
+{"title":"수정한 제목","content":"수정한 본문","version":0}
 ```
 
 `DELETE /posts/{id}`는 200과 공통 성공 응답을 반환합니다. 삭제한 ID를 다시 조회하면 404와 POST_NOT_FOUND입니다.

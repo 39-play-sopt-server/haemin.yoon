@@ -67,7 +67,10 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 - category는 GENERAL, QUESTION, INFORMATION 중 하나다.
 - 목록 조회는 page=0, size=20이 기본값이며 size는 1~100이다. category를 생략하거나 비우면 전체 분류를 조회한다.
   카테고리 필터링 후 페이지를 나누며 마지막 페이지를 넘으면 빈 배열을 반환한다.
-- 수정은 title과 content를 함께 전달하며 작성자·카테고리·작성 시각은 유지한다.
+- 수정은 title·content와 조회 응답에서 읽었던 version을 필수로 전달한다. 작성자·카테고리·작성 시각은 유지한다.
+  version 누락·음수는 400이며 버전 불일치나 커밋 시 동시 수정 충돌은 409·CONFLICT이다.
+  version은 서버가 관리하고 조회수 증가로는 바뀌지 않는다. 동일 내용 저장은 버전을 증가시키지 않는다.
+  충돌 시 최신 내용을 다시 읽고 변경을 재검토해야 하며 서버가 자동 재시도하지 않는다.
 - 응답은 success, code, message, data, violations 필드를 갖는다.
 - 목록의 data는 배열, 단건 조회는 객체, 생성·수정·삭제 및 오류 응답은 null이다.
 - 잘못된 요청(400), 존재하지 않는 게시글(404), 서버 오류(500)의 공통 응답과 예시를 제공한다.
@@ -90,6 +93,7 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
   - `PostCreateBadRequest`: 생성의 필수 필드 검증, JSON·카테고리 오류.
   - `PostUpdateBadRequest`: 수정의 제목·본문 검증, ID·JSON 오류.
   - `PostNotFound`: 존재하지 않는 게시글.
+  - `PostEditConflict`: 오래된 편집 또는 동시 수정·삭제 충돌. PUT·DELETE의 409 응답이다.
   생성·수정의 400에는 `ValidationFailed`, `InvalidRequest` 이름으로 각각 예시를 제공한다.
   목록의 400에는 `InvalidPagination`, `InvalidRequest` 예시를 제공한다. 각 컨트롤러는 자신에게 필요한 응답만 참조한다.
 - 컨트롤러는 `#/components/responses/PostNotFound` 참조를 유지한다.
