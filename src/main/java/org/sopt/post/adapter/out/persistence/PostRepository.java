@@ -10,7 +10,7 @@ import org.springframework.data.repository.query.Param;
 public interface PostRepository extends JpaRepository<Post, Long> {
   List<Post> findAllByOrderByIdAsc();
 
-  @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Modifying(flushAutomatically = true)
   @Query(value = "UPDATE posts SET view_count = view_count + 1 WHERE id = :id", nativeQuery = true)
   int incrementViewCount(@Param("id") long id);
 }

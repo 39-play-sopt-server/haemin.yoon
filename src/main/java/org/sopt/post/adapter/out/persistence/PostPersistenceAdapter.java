@@ -1,5 +1,6 @@
 package org.sopt.post.adapter.out.persistence;
 
+import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class PostPersistenceAdapter implements LoadPostPort, SavePostPort {
   private final PostRepository postRepository;
+  private final EntityManager entityManager;
 
   @Override
   public void save(Post post) {
@@ -33,7 +35,13 @@ public class PostPersistenceAdapter implements LoadPostPort, SavePostPort {
 
   @Override
   public boolean incrementViewCount(long id) {
-    return postRepository.incrementViewCount(id) == 1;
+    if (postRepository.incrementViewCount(id) == 0) {
+      return false;
+    }
+    // 벌크 UPDATE 전 flush로 미반영 수정을 보존하고, 대상만 갱신해 다른 엔티티의 변경 감지를 유지한다.
+    // 참조 획득은 SELECT하지 않으며, refresh에서 대상만 한 번 읽는다.
+    entityManager.refresh(entityManager.getReference(Post.class, id));
+    return true;
   }
 
   @Override

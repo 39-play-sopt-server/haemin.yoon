@@ -11,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sopt.post.application.facade.PostFacade;
@@ -28,8 +29,11 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest(
-    properties =
-        "spring.datasource.url=jdbc:h2:mem:post-views;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1")
+    properties = {
+      "spring.datasource.url=jdbc:h2:mem:post-views;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+      "spring.jpa.properties.hibernate.generate_statistics=true",
+      "spring.jpa.properties.hibernate.session.events.log=false"
+    })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class PostViewCountTest {
@@ -68,6 +72,19 @@ class PostViewCountTest {
   }
 
   @Test
+  void detailNeedsOnlyOneUpdateAndOneSelectWhenPostIsNotLoaded() {
+    long id = createPost();
+    var statistics =
+        entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+    statistics.clear();
+
+    Post detail = facade.getPostDetail(id);
+
+    assertEquals(1, detail.getViewCount());
+    assertEquals(2, statistics.getPrepareStatementCount());
+  }
+
+  @Test
   void missingPostDoesNotIncrementOtherPosts() throws Exception {
     long id = createPost();
     mvc.perform(get("/posts/{id}", Long.MAX_VALUE))
@@ -90,6 +107,65 @@ class PostViewCountTest {
     facade.getPostDetail(id);
     commands.updatePost(id, "수정 제목", "수정 본문");
     assertEquals(1, storedCount(id));
+  }
+
+  @Test
+  void incrementKeepsOtherManagedPostsAvailableForDirtyChecking() {
+    long id = createPost();
+    commands.createPost("다른 게시글", "다른 본문", Category.GENERAL, "작성자");
+    long otherId = jdbc.queryForObject("SELECT MAX(id) FROM posts", Long.class);
+
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(
+            status -> {
+              Post other = queries.getPost(otherId);
+              facade.getPostDetail(id);
+              other.update("증가 후 수정", "증가 후 본문");
+            });
+
+    assertEquals(1, storedCount(id));
+    assertEquals(
+        "증가 후 수정",
+        jdbc.queryForObject("SELECT title FROM posts WHERE id = ?", String.class, otherId));
+  }
+
+  @Test
+  void incrementUpdatesPreviouslyLoadedPostAndKeepsLaterChangesManaged() {
+    long id = createPost();
+
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(
+            status -> {
+              Post loaded = queries.getPost(id);
+              Post detail = facade.getPostDetail(id);
+              assertEquals(1, detail.getViewCount());
+              assertEquals(1, loaded.getViewCount());
+              loaded.update("증가 후 제목", "증가 후 본문");
+            });
+
+    assertEquals(1, storedCount(id));
+    assertEquals(
+        "증가 후 제목", jdbc.queryForObject("SELECT title FROM posts WHERE id = ?", String.class, id));
+  }
+
+  @Test
+  void incrementPreservesPendingChangesOnTargetPost() {
+    long id = createPost();
+
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(
+            status -> {
+              Post loaded = queries.getPost(id);
+              loaded.update("증가 전 제목", "증가 전 본문");
+              Post detail = facade.getPostDetail(id);
+              assertEquals("증가 전 제목", detail.getTitle());
+              assertEquals("증가 전 본문", detail.getContent());
+              assertEquals(1, detail.getViewCount());
+            });
+
+    assertEquals(1, storedCount(id));
+    assertEquals(
+        "증가 전 제목", jdbc.queryForObject("SELECT title FROM posts WHERE id = ?", String.class, id));
   }
 
   @Test
