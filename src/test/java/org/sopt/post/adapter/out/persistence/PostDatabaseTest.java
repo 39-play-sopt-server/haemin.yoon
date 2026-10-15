@@ -60,7 +60,7 @@ class PostDatabaseTest {
   void commandUpdateCommitsBothFieldsAndPreservesMetadata() {
     commands.createPost("기존 제목", "기존 본문", Category.INFORMATION, "작성자");
     var original = reader.findAll(new PostListQuery(0, 100, null)).getFirst();
-    commands.updatePost(original.getId(), "수정 제목", "수정 본문");
+    commands.updatePost(original.getId(), "수정 제목", "수정 본문", 0L);
     var updated = reader.findById(original.getId()).orElseThrow();
     assertEquals("수정 제목", updated.getTitle());
     assertEquals("수정 본문", updated.getContent());
@@ -75,10 +75,11 @@ class PostDatabaseTest {
     long id = reader.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
     assertThrows(
         org.sopt.post.domain.exception.PostException.class,
-        () -> commands.updatePost(id, "변경되면 안 되는 제목", " "));
+        () -> commands.updatePost(id, "변경되면 안 되는 제목", " ", 0L));
     var stored = reader.findById(id).orElseThrow();
     assertEquals("기존 제목", stored.getTitle());
     assertEquals("기존 본문", stored.getContent());
+    assertEquals(0, stored.getVersion());
   }
 
   @Test
@@ -92,8 +93,12 @@ class PostDatabaseTest {
         () ->
             transaction.executeWithoutResult(
                 status -> {
-                  commands.updatePost(id, "롤백할 제목", "롤백할 본문");
+                  commands.updatePost(id, "롤백할 제목", "롤백할 본문", 0L);
                   entityManager.flush();
+                  assertEquals(
+                      1L,
+                      jdbc.queryForObject(
+                          "SELECT version FROM posts WHERE id = ?", Long.class, id));
                   assertEquals(
                       "롤백할 제목",
                       jdbc.queryForObject(
@@ -103,6 +108,7 @@ class PostDatabaseTest {
     var stored = reader.findById(id).orElseThrow();
     assertEquals("기존 제목", stored.getTitle());
     assertEquals("기존 본문", stored.getContent());
+    assertEquals(0, stored.getVersion());
   }
 
   @BeforeEach
@@ -160,7 +166,7 @@ class PostDatabaseTest {
     writer.save(new Post("제목", "본문", Category.INFORMATION, "작성자"));
     Post post = reader.findAll(new PostListQuery(0, 100, null)).getFirst();
     LocalDateTime createdAt = post.getCreatedAt();
-    commands.updatePost(post.getId(), "수정 제목", "수정 본문");
+    commands.updatePost(post.getId(), "수정 제목", "수정 본문", 0L);
     Post updated = reader.findById(post.getId()).orElseThrow();
     assertEquals("수정 제목", updated.getTitle());
     assertEquals("수정 본문", updated.getContent());
@@ -173,7 +179,7 @@ class PostDatabaseTest {
         () -> commands.deletePost(post.getId()));
     assertThrows(
         org.sopt.post.domain.exception.PostException.class,
-        () -> commands.updatePost(post.getId(), "없는 글", "본문"));
+        () -> commands.updatePost(post.getId(), "없는 글", "본문", 0L));
     assertTrue(reader.findById(post.getId()).isEmpty());
   }
 

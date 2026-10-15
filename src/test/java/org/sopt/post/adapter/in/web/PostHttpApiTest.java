@@ -65,7 +65,7 @@ class PostHttpApiTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-            {"title":"새 제목","content":"새 본문"}
+            {"title":"새 제목","content":"새 본문","version":0}
             """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.message").value("게시글이 수정되었습니다."));
@@ -152,7 +152,7 @@ class PostHttpApiTest {
     mvc.perform(
             put("/posts/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\" \",\"content\":null}"))
+                .content("{\"title\":\" \",\"content\":null,\"version\":0}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
         .andExpect(jsonPath("$.violations[*].field").value(contains("content", "title")));
@@ -174,7 +174,7 @@ class PostHttpApiTest {
     mvc.perform(
             put("/posts/99999")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"제목\",\"content\":\"본문\"}"))
+                .content("{\"title\":\"제목\",\"content\":\"본문\",\"version\":0}"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
     mvc.perform(delete("/posts/99999"))
@@ -244,7 +244,7 @@ class PostHttpApiTest {
             put("/posts/{id}", id)
                 .accept(accept)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"수정 제목\",\"content\":\"수정 본문\"}"))
+                .content("{\"title\":\"수정 제목\",\"content\":\"수정 본문\",\"version\":0}"))
         .andExpect(status().isNotAcceptable())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"));

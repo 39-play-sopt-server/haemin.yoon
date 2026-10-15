@@ -10,8 +10,8 @@ public interface PostCommandUseCase {
   /** 유효한 게시글을 서버에서 발급한 ID로 생성합니다. */
   void createPost(String title, String content, Category category, String author);
 
-  /** 제목·본문을 검증한 후 함께 변경하며, 대상이 없거나 검증에 실패하면 예외를 발생시킵니다. */
-  void updatePost(long id, String title, String content);
+  /** 읽었던 버전과 일치할 때 제목·본문을 변경합니다. 경합 시 커밋 단계에서도 충돌할 수 있습니다. */
+  void updatePost(long id, String title, String content, long expectedVersion);
 
   /** 해당 게시글을 삭제하며, 없으면 POST_NOT_FOUND 예외를 발생시킵니다. */
   void deletePost(long id);

@@ -1,4 +1,8 @@
 spring:
+  jackson:
+    deserialization:
+      # 정수 필드로 보낸 소수를 절삭해 다른 값으로 처리하지 않습니다.
+      accept-float-as-int: false
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/assignment}
     username: ${DB_USERNAME:${user.name}}

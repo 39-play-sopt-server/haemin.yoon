@@ -18,7 +18,9 @@ public record PostResponse(
     @Schema(description = "서버 로컬 기준 작성 시각. 타임존 정보 없음", example = "2026-10-13T12:00:00")
         LocalDateTime createdAt,
     @Schema(description = "조회수. 상세 조회 성공마다 1 증가하며 목록 조회에서는 증가하지 않습니다.", example = "1")
-        long viewCount) {
+        long viewCount,
+    @Schema(description = "편집 버전. 수정 요청에 이 값을 전달하며 조회수 증가로는 바뀌지 않습니다.", example = "0")
+        long version) {
   /**
    * 도메인의 값을 응답으로 복사합니다. 외부용 DTO가 도메인을 참조하므로 의존성은 내부를 향합니다. 변환 규칙을 결과 DTO와 함께 두어 컨트롤러는 유스케이스 호출과 응답
    * 처리 흐름에 집중합니다.
@@ -31,6 +33,7 @@ public record PostResponse(
         PostCategory.from(post.getCategory()),
         post.getAuthor(),
         post.getCreatedAt(),
-        post.getViewCount());
+        post.getViewCount(),
+        post.getVersion());
   }
 }

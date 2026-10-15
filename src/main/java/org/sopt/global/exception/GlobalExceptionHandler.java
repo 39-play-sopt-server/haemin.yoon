@@ -4,6 +4,7 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.sopt.global.response.BaseResponse;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -41,6 +42,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return ResponseEntity.status(code.getHttpStatus())
         .contentType(MediaType.APPLICATION_JSON)
         .body(BaseResponse.failure(code));
+  }
+
+  /** 커밋 시 발생하는 낙관적 잠금 충돌도 도메인에 관계없이 동일한 409 계약으로 처리합니다. */
+  @ExceptionHandler(OptimisticLockingFailureException.class)
+  public ResponseEntity<BaseResponse<Void>> handleOptimisticLockingFailure(
+      OptimisticLockingFailureException exception) {
+    return ResponseEntity.status(GlobalErrorCode.CONFLICT.getHttpStatus())
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BaseResponse.failure(GlobalErrorCode.CONFLICT));
   }
 
   /** MVC가 결정한 상태와 Allow 등의 헤더, 응답 커밋 여부 처리는 상위 구현에 맡깁니다. */

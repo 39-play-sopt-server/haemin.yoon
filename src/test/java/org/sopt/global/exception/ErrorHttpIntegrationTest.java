@@ -45,7 +45,8 @@ class ErrorHttpIntegrationTest {
     "send-error,503,SERVICE_UNAVAILABLE",
     "checked,500,INTERNAL_SERVER_ERROR",
     "parameter,400,INVALID_REQUEST",
-    "rate-limit,429,TOO_MANY_REQUESTS"
+    "rate-limit,429,TOO_MANY_REQUESTS",
+    "optimistic,409,CONFLICT"
   })
   void preservesStatusAndSafeEnvelopeOverRealHttp(String path, int status, String code)
       throws Exception {
@@ -100,6 +101,12 @@ class ErrorHttpIntegrationTest {
 
   @RestController
   static class ProbeController {
+    @GetMapping("/probe/optimistic")
+    BaseResponse<Void> optimistic() {
+      throw new org.springframework.dao.OptimisticLockingFailureException(
+          "secret persistence details");
+    }
+
     @GetMapping("/probe/checked")
     BaseResponse<Void> checked() throws Exception {
       throw new Exception("secret checked exception");

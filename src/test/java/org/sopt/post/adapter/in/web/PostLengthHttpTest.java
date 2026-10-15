@@ -48,7 +48,7 @@ class PostLengthHttpTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":"%s","content":"변경 본문"}
+        {"title":"%s","content":"변경 본문","version":0}
         """
                         .formatted("😀".repeat(101))))
         .andExpect(status().isBadRequest())
@@ -95,7 +95,7 @@ class PostLengthHttpTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":"%s","content":"%s"}
+        {"title":"%s","content":"%s","version":0}
         """
                         .formatted(title, content)))
         .andExpect(status().isBadRequest())
@@ -133,7 +133,7 @@ class PostLengthHttpTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":"%s","content":"%s"}
+        {"title":"%s","content":"%s","version":0}
         """
                         .formatted("수".repeat(200), "정".repeat(10000))))
         .andExpect(status().isOk());

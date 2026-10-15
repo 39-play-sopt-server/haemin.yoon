@@ -142,7 +142,7 @@ class ApiDocumentationTest {
         .andExpect(
             jsonPath(
                 "$.components.responses.PostUpdateBadRequest.content['application/json'].examples.ValidationFailed.value.violations[*].field",
-                containsInAnyOrder("title", "content")));
+                containsInAnyOrder("title", "content", "version")));
   }
 
   @Test
@@ -178,6 +178,30 @@ class ApiDocumentationTest {
         .andExpect(
             jsonPath("$.components.schemas.UpdatePostRequest.properties.content.maxLength")
                 .value(10000));
+  }
+
+  @Test
+  void documentsRequiredVersionAndEditConflict() throws Exception {
+    mvc.perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                "$.components.schemas.UpdatePostRequest.required",
+                containsInAnyOrder("title", "content", "version")))
+        .andExpect(
+            jsonPath("$.components.schemas.UpdatePostRequest.properties.version.minimum").value(0))
+        .andExpect(
+            jsonPath("$.components.schemas.PostResponse.properties.version.type").value("integer"))
+        .andExpect(
+            jsonPath("$.paths['/posts/{id}'].put.responses['409'].$ref")
+                .value("#/components/responses/PostEditConflict"))
+        .andExpect(
+            jsonPath("$.paths['/posts/{id}'].delete.responses['409'].$ref")
+                .value("#/components/responses/PostEditConflict"))
+        .andExpect(
+            jsonPath(
+                    "$.components.responses.PostEditConflict.content['application/json'].example.code")
+                .value("CONFLICT"));
   }
 
   @Test

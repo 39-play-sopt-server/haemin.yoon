@@ -1,5 +1,7 @@
 package org.sopt.post.application.service.command;
 
+import org.sopt.global.exception.BaseException;
+import org.sopt.global.exception.GlobalErrorCode;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.application.port.out.SavePostPort;
@@ -32,11 +34,18 @@ public class PostCommandService implements PostCommandUseCase {
   }
 
   @Override
-  public void updatePost(long id, String title, String content) {
+  public void updatePost(long id, String title, String content, long expectedVersion) {
+    if (expectedVersion < 0) {
+      throw new PostException(PostErrorCode.INVALID_VERSION);
+    }
     Post original =
         loadPostPort
             .findById(id)
             .orElseThrow(() -> new PostException(PostErrorCode.POST_NOT_FOUND));
+    // 오래된 편집을 거부하고, 이후 실제 동시 경합은 JPA @Version의 커밋 검사에 맡깁니다.
+    if (original.getVersion() != expectedVersion) {
+      throw new BaseException(GlobalErrorCode.CONFLICT);
+    }
     original.update(title, content);
   }
 

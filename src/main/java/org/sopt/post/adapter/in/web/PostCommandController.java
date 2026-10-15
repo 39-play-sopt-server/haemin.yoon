@@ -48,15 +48,17 @@ public class PostCommandController {
 
   @Operation(
       summary = "게시글 수정",
-      description = "제목과 본문을 함께 수정합니다. 작성자, 카테고리, 작성 시각은 유지합니다. 성공 응답의 data는 null입니다.")
+      description =
+          "제목·본문과 조회 응답에서 읽은 version을 전달합니다. 버전 불일치 또는 동시 수정 충돌은 409입니다. 작성자·카테고리·작성 시각은 유지하고 성공 응답의 data는 null입니다.")
   @ApiResponse(responseCode = "200", description = "게시글 수정 성공")
   @ApiResponse(responseCode = "400", ref = "#/components/responses/PostUpdateBadRequest")
   @ApiResponse(responseCode = "404", ref = "#/components/responses/PostNotFound")
+  @ApiResponse(responseCode = "409", ref = "#/components/responses/PostEditConflict")
   @PutMapping("/{id}")
   public BaseResponse<Void> updatePost(
       @Parameter(description = "게시글 ID", example = "1") @PathVariable("id") long id,
       @Valid @RequestBody UpdatePostRequest request) {
-    useCase.updatePost(id, request.title(), request.content());
+    useCase.updatePost(id, request.title(), request.content(), request.version());
     return BaseResponse.success(null, "게시글이 수정되었습니다.");
   }
 
@@ -64,6 +66,7 @@ public class PostCommandController {
   @ApiResponse(responseCode = "200", description = "게시글 삭제 성공")
   @ApiResponse(responseCode = "400", ref = "#/components/responses/InvalidPostId")
   @ApiResponse(responseCode = "404", ref = "#/components/responses/PostNotFound")
+  @ApiResponse(responseCode = "409", ref = "#/components/responses/PostEditConflict")
   @DeleteMapping("/{id}")
   public BaseResponse<Void> deletePost(
       @Parameter(description = "게시글 ID", example = "1") @PathVariable("id") long id) {

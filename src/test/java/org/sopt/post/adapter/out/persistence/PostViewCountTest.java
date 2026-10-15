@@ -105,7 +105,7 @@ class PostViewCountTest {
   void updatingContentDoesNotResetViews() {
     long id = createPost();
     facade.getPostDetail(id);
-    commands.updatePost(id, "수정 제목", "수정 본문");
+    commands.updatePost(id, "수정 제목", "수정 본문", 0L);
     assertEquals(1, storedCount(id));
   }
 

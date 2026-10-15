@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import org.sopt.post.domain.exception.PostErrorCode;
@@ -47,6 +48,11 @@ public class Post {
   /** 조회수는 전용 출력 포트의 원자적 UPDATE로 변경하며 일반 엔티티 수정에서 제외합니다. */
   @Column(name = "view_count", nullable = false, updatable = false)
   private long viewCount;
+
+  /** 편집 충돌을 감지하는 버전입니다. 값은 JPA가 관리하며 조회수 UPDATE에서는 변경하지 않습니다. */
+  @Version
+  @Column(nullable = false)
+  private long version;
 
   /** JPA가 DB의 행을 엔티티로 복원할 때 사용합니다. */
   protected Post() {}
@@ -102,6 +108,10 @@ public class Post {
 
   public long getViewCount() {
     return viewCount;
+  }
+
+  public long getVersion() {
+    return version;
   }
 
   /** 모든 값을 검증한 뒤 관리 중인 엔티티를 변경합니다. 메타데이터는 유지합니다. */

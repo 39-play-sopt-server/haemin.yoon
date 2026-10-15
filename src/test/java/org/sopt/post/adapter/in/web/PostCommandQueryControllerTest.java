@@ -85,7 +85,7 @@ class PostCommandQueryControllerTest {
     mvc.perform(
             put("/posts/1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"새 제목\",\"content\":\" \"}"))
+                .content("{\"title\":\"새 제목\",\"content\":\" \",\"version\":0}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     assertEquals("제목", queries.getPost(1).data().title());
@@ -101,7 +101,7 @@ class PostCommandQueryControllerTest {
     mvc.perform(
             put("/posts/1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"수정 제목\",\"content\":\"수정 본문\"}"))
+                .content("{\"title\":\"수정 제목\",\"content\":\"수정 본문\",\"version\":0}"))
         .andExpect(status().isOk());
     assertEquals("제목", original.title());
     assertEquals("본문", list.getFirst().content());

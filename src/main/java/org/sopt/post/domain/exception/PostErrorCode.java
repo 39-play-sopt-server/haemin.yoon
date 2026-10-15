@@ -24,6 +24,7 @@ public enum PostErrorCode implements ErrorCode {
       "작성자는 " + Post.MAX_AUTHOR_LENGTH + "자를 초과할 수 없습니다."),
   INVALID_CATEGORY(HttpStatus.BAD_REQUEST, "INVALID_CATEGORY", "카테고리는 필수입니다."),
   INVALID_PAGINATION(HttpStatus.BAD_REQUEST, "INVALID_PAGINATION", "페이지 번호 또는 크기가 허용 범위를 벗어났습니다."),
+  INVALID_VERSION(HttpStatus.BAD_REQUEST, "INVALID_VERSION", "게시글 버전은 0 이상이어야 합니다."),
   INVALID_AUTHOR(HttpStatus.BAD_REQUEST, "INVALID_AUTHOR", "작성자는 비어 있을 수 없습니다.");
 
   private final HttpStatus httpStatus;

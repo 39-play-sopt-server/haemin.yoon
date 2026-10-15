@@ -38,10 +38,16 @@ public class PostOpenApiConfig {
             .addResponses(
                 "PostUpdateBadRequest",
                 requestErrors(
-                    "수정할 제목·본문은 공백일 수 없습니다(VALIDATION_FAILED). "
+                    "수정할 제목·본문은 공백일 수 없고 version은 필수인 0 이상 정수입니다(VALIDATION_FAILED). "
                         + "요청 스키마의 maxLength 초과 시에도 VALIDATION_FAILED를 반환하며 필드 오류 코드는 INVALID_LENGTH입니다. "
                         + "게시글 ID 형식 오류, 본문 누락 또는 잘못된 JSON은 INVALID_REQUEST를 반환합니다.",
-                    List.of("title", "content")))
+                    List.of("title", "content", "version")))
+            .addResponses(
+                "PostEditConflict",
+                OpenApiResponses.errorResponse(
+                    "읽었던 버전과 다르거나 동시 수정·삭제로 충돌했습니다. 최신 내용을 조회해 변경을 재검토해야 합니다.",
+                    GlobalErrorCode.CONFLICT,
+                    List.of()))
             .addResponses(
                 "PostNotFound",
                 OpenApiResponses.errorResponse(
