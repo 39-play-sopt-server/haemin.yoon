@@ -207,13 +207,24 @@ HTTP 상세 조회는 `PostFacade.getPostDetail()`을 호출합니다. Facade는
 `PostQueryUseCase.getPost()`로 게시글을 읽습니다. Command는 `SavePostPort`, Query는 `LoadPostPort`만 사용합니다.
 두 작업은 동일 트랜잭션이며 후속 조회에 실패하면 앞선 조회수 증가도 롤백됩니다.
 내부에서 `PostQueryUseCase.getPost()`만 호출하면 조회수는 증가하지 않습니다.
-동시 요청의 누락을 방지하고, 벌크 UPDATE 후 영속성 컨텍스트를 비워 최신 값을 읽습니다.
+동시 요청의 누락을 방지하기 위해 DB에서 원자적으로 증가시킵니다.
+벌크 UPDATE 전 `flushAutomatically = true`로 대기 중인 변경을 반영하고,
+영속성 어댑터에서 `EntityManager.getReference()`로 대상 참조를 얻고,
+해당 게시글만 `EntityManager.refresh()`로 다시 읽습니다.
+참조를 얻을 때 미리 조회하지 않으므로 일반 상세 열람은 UPDATE 1회와 SELECT 1회로 처리합니다.
+전체 영속성 컨텍스트를 비우지 않으므로, 같은 트랜잭션에서 이미 조회한 다른 엔티티와
+대상 게시글 모두 이후 수정이 변경 감지로 저장됩니다.
+`refresh()`는 대상의 메모리 값을 DB 값으로 덮어쓰므로 UPDATE 전 flush 순서를 유지해야 합니다.
+현재는 게시글에 연관관계가 없으며, 향후 `CascadeType.REFRESH`를 추가하면 연관 엔티티까지
+갱신 범위가 넓어지는지 함께 검토해야 합니다.
 `view_count`는 `updatable = false`로 일반 엔티티 UPDATE에서 제외하므로,
 오래된 엔티티로 제목·본문을 수정해도 다른 요청이 증가시킨 조회수를 덮어쓰지 않습니다.
 이는 제목·본문 자체의 동시 수정 충돌까지 해결하는 것은 아닙니다.
 
 `PostViewCountTest`는 HTTP 응답, 목록 조회의 비증가, 없는 게시글, 트랜잭션 롤백,
 동시 상세 조회 40건 및 오래된 엔티티의 본문 수정이 조회수를 덮어쓰지 않는지 검증합니다.
+같은 트랜잭션에서 조회수 증가 전의 대상 수정 보존, 증가 후 대상·다른 게시글의 변경 감지,
+이미 읽은 게시글의 최신 조회수 반영도 확인합니다.
 `PostFacadeTransactionTest`는 Command 증가 후 Query가 실패할 때 전체 롤백을 검증합니다.
 실제 PostgreSQL의 임시 V1 DB에서도 V2 전환과 HTTP 동시 조회를 검증했으며,
 기존 게시글 보존과 조회수 0, 2회 조회 후 2, 추가 동시 40회 후 42를 확인했습니다.
