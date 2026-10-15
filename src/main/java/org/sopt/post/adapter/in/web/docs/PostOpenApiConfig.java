@@ -21,6 +21,7 @@ public class PostOpenApiConfig {
     return openApi ->
         openApi
             .getComponents()
+            .addResponses("PostListBadRequest", listRequestErrors())
             .addResponses(
                 "InvalidPostId",
                 OpenApiResponses.errorResponse(
@@ -43,6 +44,16 @@ public class PostOpenApiConfig {
                 "PostNotFound",
                 OpenApiResponses.errorResponse(
                     "해당 ID의 게시글이 없습니다.", PostErrorCode.POST_NOT_FOUND, List.of()));
+  }
+
+  private ApiResponse listRequestErrors() {
+    Map<String, BaseResponse<Void>> examples = new LinkedHashMap<>();
+    examples.put("InvalidPagination", BaseResponse.failure(PostErrorCode.INVALID_PAGINATION));
+    examples.put("InvalidRequest", BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));
+    return OpenApiResponses.errorResponses(
+        "page는 0 이상, size는 1~100이어야 하고 page * size는 2147483647 이하여야 합니다(INVALID_PAGINATION). "
+            + "정수가 아닌 page·size, int 범위를 벗어나는 숫자 또는 허용되지 않은 category는 INVALID_REQUEST를 반환합니다.",
+        examples);
   }
 
   private ApiResponse requestErrors(String description, List<String> fields) {

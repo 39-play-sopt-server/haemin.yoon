@@ -4,9 +4,11 @@ import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.application.port.out.SavePostPort;
 import org.sopt.post.domain.Post;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,8 +26,11 @@ public class PostPersistenceAdapter implements LoadPostPort, SavePostPort {
   }
 
   @Override
-  public List<Post> findAll() {
-    return postRepository.findAllByOrderByIdAsc();
+  public List<Post> findAll(PostListQuery query) {
+    var pageable = PageRequest.of(query.page(), query.size());
+    return query.category() == null
+        ? postRepository.findAllByOrderByIdAsc(pageable)
+        : postRepository.findAllByCategoryOrderByIdAsc(query.category(), pageable);
   }
 
   @Override

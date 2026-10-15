@@ -16,6 +16,7 @@ import org.sopt.post.adapter.in.web.dto.PostCategory;
 import org.sopt.post.adapter.in.web.dto.request.CreatePostRequest;
 import org.sopt.post.adapter.out.persistence.InMemoryPostRepository;
 import org.sopt.post.application.facade.PostFacade;
+import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
 import org.sopt.post.domain.Post;
@@ -66,7 +67,7 @@ class PostCommandQueryControllerTest {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value(code))
         .andExpect(jsonPath("$.data").isEmpty());
-    assertTrue(queries.getPosts().data().isEmpty());
+    assertTrue(queries.getPosts(0, 100, null).data().isEmpty());
   }
 
   @Test
@@ -95,7 +96,7 @@ class PostCommandQueryControllerTest {
   void responseSnapshotsRemainUnchangedAfterHttpMutations() throws Exception {
     createPost();
     var original = queries.getPost(1).data();
-    var list = queries.getPosts().data();
+    var list = queries.getPosts(0, 100, null).data();
     assertThrows(UnsupportedOperationException.class, list::clear);
     mvc.perform(
             put("/posts/1")
@@ -116,7 +117,7 @@ class PostCommandQueryControllerTest {
     var service =
         new PostQueryService(failingRepository) {
           @Override
-          public List<Post> getPosts() {
+          public List<Post> getPosts(PostListQuery query) {
             throw new IllegalStateException("internal secret details");
           }
         };

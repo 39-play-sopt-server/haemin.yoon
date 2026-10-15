@@ -10,12 +10,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
-import org.sopt.post.application.port.out.SavePostPort;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,11 +26,11 @@ import org.springframework.test.web.servlet.MockMvc;
 class PostHttpApiTest {
   @Autowired MockMvc mvc;
   @Autowired LoadPostPort repository;
-  @Autowired SavePostPort writer;
+  @Autowired JdbcTemplate jdbc;
 
   @BeforeEach
   void clearPosts() {
-    repository.findAll().forEach(writer::delete);
+    jdbc.update("DELETE FROM posts");
   }
 
   @Test
@@ -44,7 +45,7 @@ class PostHttpApiTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.code").value("SUCCESS"));
-    long id = repository.findAll().getFirst().getId();
+    long id = repository.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.length()").value(1))
@@ -143,7 +144,7 @@ class PostHttpApiTest {
         {"title":"기존 제목","content":"기존 본문","category":"GENERAL","author":"작성자"}
         """))
         .andExpect(status().isCreated());
-    long id = repository.findAll().getFirst().getId();
+    long id = repository.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
     mvc.perform(
             put("/posts/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)

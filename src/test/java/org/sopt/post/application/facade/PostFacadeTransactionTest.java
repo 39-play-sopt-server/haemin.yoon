@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
+import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
@@ -44,7 +45,7 @@ class PostFacadeTransactionTest {
     PostQueryUseCase failingQuery(JdbcTemplate jdbc) {
       return new PostQueryUseCase() {
         @Override
-        public List<Post> getPosts() {
+        public List<Post> getPosts(PostListQuery query) {
           return List.of();
         }
 

@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.application.port.out.SavePostPort;
 import org.sopt.post.domain.Post;
@@ -32,10 +33,14 @@ public class InMemoryPostRepository implements LoadPostPort, SavePostPort {
   }
 
   @Override
-  public List<Post> findAll() {
+  public List<Post> findAll(PostListQuery query) {
     List<Post> result = new ArrayList<>(posts.values());
     result.sort(Comparator.comparingLong(Post::getId));
-    return result;
+    return result.stream()
+        .filter(post -> query.category() == null || post.getCategory() == query.category())
+        .skip((long) query.page() * query.size())
+        .limit(query.size())
+        .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
   }
 
   @Override

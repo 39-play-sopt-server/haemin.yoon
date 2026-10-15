@@ -58,6 +58,31 @@ class ApiDocumentationTest {
   }
 
   @Test
+  void listQueryDocumentationMatchesActualPaginationError() throws Exception {
+    var document =
+        json.readTree(
+            mvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(
+                    jsonPath("$.paths['/posts'].get.parameters[*].name")
+                        .value(containsInAnyOrder("page", "size", "category")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    var actual =
+        json.readTree(
+            mvc.perform(get("/posts").param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    org.junit.jupiter.api.Assertions.assertEquals(
+        actual,
+        document.at(
+            "/components/responses/PostListBadRequest/content/application~1json/examples/InvalidPagination/value"));
+  }
+
+  @Test
   void exposesOnlyPostOperationsWithActualStatusesAndErrorEnvelope() throws Exception {
     mvc.perform(get("/v3/api-docs"))
         .andExpect(status().isOk())
@@ -95,7 +120,9 @@ class ApiDocumentationTest {
         .andExpect(
             jsonPath("$.paths['/posts/{id}'].put.responses['400'].$ref")
                 .value("#/components/responses/PostUpdateBadRequest"))
-        .andExpect(jsonPath("$.paths['/posts'].get.responses['400']").doesNotExist())
+        .andExpect(
+            jsonPath("$.paths['/posts'].get.responses['400'].$ref")
+                .value("#/components/responses/PostListBadRequest"))
         .andExpect(
             jsonPath("$.components.responses.InvalidPostId.description", not(containsString("본문"))))
         .andExpect(

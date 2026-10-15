@@ -10,6 +10,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.adapter.out.persistence.InMemoryPostRepository;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
+import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
@@ -27,7 +28,7 @@ class PostCommandQueryServiceTest {
     commands.createPost("제목", "본문", Category.GENERAL, "작성자");
     queries.getPost(1);
     queries.getPost(1);
-    assertEquals(0, queries.getPosts().getFirst().getViewCount());
+    assertEquals(0, queries.getPosts(new PostListQuery(0, 100, null)).getFirst().getViewCount());
   }
 
   @Test
@@ -50,7 +51,7 @@ class PostCommandQueryServiceTest {
             PostException.class, () -> commands.createPost(title, "본문", Category.GENERAL, "작성자"));
     assertEquals(PostErrorCode.INVALID_TITLE, exception.getErrorCode());
     assertEquals("제목은 비어 있을 수 없습니다.", exception.getMessage());
-    assertEquals(1, queries.getPosts().size());
+    assertEquals(1, queries.getPosts(new PostListQuery(0, 100, null)).size());
     assertEquals("기존 제목", queries.getPost(1).getTitle());
   }
 
@@ -63,7 +64,7 @@ class PostCommandQueryServiceTest {
             PostException.class, () -> commands.createPost("제목", content, Category.GENERAL, "작성자"));
     assertEquals(PostErrorCode.INVALID_CONTENT, exception.getErrorCode());
     assertEquals("본문은 비어 있을 수 없습니다.", exception.getMessage());
-    assertTrue(queries.getPosts().isEmpty());
+    assertTrue(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
   }
 
   @ParameterizedTest
@@ -75,7 +76,7 @@ class PostCommandQueryServiceTest {
             PostException.class, () -> commands.createPost("제목", "본문", Category.GENERAL, author));
     assertEquals(PostErrorCode.INVALID_AUTHOR, exception.getErrorCode());
     assertEquals("작성자는 비어 있을 수 없습니다.", exception.getMessage());
-    assertTrue(queries.getPosts().isEmpty());
+    assertTrue(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
   }
 
   @Test
@@ -84,7 +85,7 @@ class PostCommandQueryServiceTest {
         assertThrows(PostException.class, () -> commands.createPost("제목", "본문", null, "작성자"));
     assertEquals(PostErrorCode.INVALID_CATEGORY, exception.getErrorCode());
     assertEquals("카테고리는 필수입니다.", exception.getMessage());
-    assertTrue(queries.getPosts().isEmpty());
+    assertTrue(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
   }
 
   @ParameterizedTest
@@ -118,9 +119,9 @@ class PostCommandQueryServiceTest {
   void createsAndListsPostsInOrder() {
     commands.createPost("첫 글", "첫 본문", Category.GENERAL, "작성자");
     commands.createPost("둘째 글", "둘째 본문", Category.GENERAL, "작성자");
-    assertFalse(queries.getPosts().isEmpty());
-    assertEquals(2, queries.getPosts().size());
-    assertEquals("첫 글", queries.getPosts().get(0).getTitle());
+    assertFalse(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
+    assertEquals(2, queries.getPosts(new PostListQuery(0, 100, null)).size());
+    assertEquals("첫 글", queries.getPosts(new PostListQuery(0, 100, null)).get(0).getTitle());
     assertEquals("둘째 본문", queries.getPost(2).getContent());
   }
 
@@ -179,7 +180,8 @@ class PostCommandQueryServiceTest {
     commands.createPost("셋째 글", "셋째 본문", Category.GENERAL, "작성자");
     commands.deletePost(2);
     assertEquals(
-        java.util.List.of(1L, 3L), queries.getPosts().stream().map(p -> p.getId()).toList());
+        java.util.List.of(1L, 3L),
+        queries.getPosts(new PostListQuery(0, 100, null)).stream().map(p -> p.getId()).toList());
     assertEquals("셋째 글", queries.getPost(3).getTitle());
     assertNotFound(() -> queries.getPost(2));
     commands.createPost("새 글", "새 본문", Category.GENERAL, "작성자");
@@ -197,7 +199,7 @@ class PostCommandQueryServiceTest {
       assertNotFound(() -> commands.updatePost(id, "변경", "변경"));
       assertNotFound(() -> commands.deletePost(id));
     }
-    assertEquals(1, queries.getPosts().size());
+    assertEquals(1, queries.getPosts(new PostListQuery(0, 100, null)).size());
     assertEquals("제목", queries.getPost(1).getTitle());
   }
 
@@ -209,7 +211,7 @@ class PostCommandQueryServiceTest {
 
   @Test
   void emptyRepositoryReturnsNoPost() {
-    assertTrue(queries.getPosts().isEmpty());
+    assertTrue(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
     assertNotFound(() -> queries.getPost(1));
     assertNotFound(() -> commands.updatePost(1, "제목", "본문"));
     assertNotFound(() -> commands.deletePost(1));

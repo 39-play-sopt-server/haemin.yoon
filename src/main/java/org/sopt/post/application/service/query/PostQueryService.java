@@ -1,6 +1,7 @@
 package org.sopt.post.application.service.query;
 
 import java.util.List;
+import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.domain.Post;
@@ -20,8 +21,8 @@ public class PostQueryService implements PostQueryUseCase {
   }
 
   @Override
-  public List<Post> getPosts() {
-    return loadPostPort.findAll();
+  public List<Post> getPosts(PostListQuery query) {
+    return loadPostPort.findAll(query);
   }
 
   @Override

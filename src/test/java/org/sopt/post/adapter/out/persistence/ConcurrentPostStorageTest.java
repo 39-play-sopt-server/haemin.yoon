@@ -8,6 +8,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
+import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
 
@@ -21,7 +22,10 @@ class ConcurrentPostStorageTest {
             repository.save(new Post("제목", "본문", Category.GENERAL, "작성자"));
           }
         });
-    var posts = repository.findAll();
+    var posts = new ArrayList<Post>();
+    for (int page = 0; page < 80; page++) {
+      posts.addAll(repository.findAll(new PostListQuery(page, 100, null)));
+    }
     assertEquals(8000, posts.size());
     for (int i = 0; i < posts.size(); i++) {
       assertEquals(i + 1L, posts.get(i).getId());
