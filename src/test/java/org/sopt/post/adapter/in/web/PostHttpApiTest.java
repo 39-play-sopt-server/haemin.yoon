@@ -1,6 +1,7 @@
 package org.sopt.post.adapter.in.web;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -10,8 +11,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
+import org.sopt.post.domain.Category;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -26,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class PostHttpApiTest {
   @Autowired MockMvc mvc;
   @Autowired LoadPostPort repository;
+  @Autowired PostCommandUseCase commands;
   @Autowired JdbcTemplate jdbc;
 
   @BeforeEach
@@ -211,6 +215,91 @@ class PostHttpApiTest {
         .andExpect(status().isNotAcceptable())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"application/xml", "text/html"})
+  void unsupportedAcceptDoesNotCreatePost(String accept) throws Exception {
+    mvc.perform(
+            post("/posts")
+                .accept(accept)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"title":"제목","content":"본문","category":"GENERAL","author":"작성자"}
+                    """))
+        .andExpect(status().isNotAcceptable())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"));
+
+    assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM posts", Integer.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"application/xml", "text/html"})
+  void unsupportedAcceptDoesNotUpdatePost(String accept) throws Exception {
+    long id = createStoredPost();
+
+    mvc.perform(
+            put("/posts/{id}", id)
+                .accept(accept)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"수정 제목\",\"content\":\"수정 본문\"}"))
+        .andExpect(status().isNotAcceptable())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"));
+
+    assertEquals(
+        "기존 제목", jdbc.queryForObject("SELECT title FROM posts WHERE id = ?", String.class, id));
+    assertEquals(
+        "기존 본문", jdbc.queryForObject("SELECT content FROM posts WHERE id = ?", String.class, id));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"application/xml", "text/html"})
+  void unsupportedAcceptDoesNotDeletePost(String accept) throws Exception {
+    long id = createStoredPost();
+
+    mvc.perform(delete("/posts/{id}", id).accept(accept))
+        .andExpect(status().isNotAcceptable())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"));
+
+    assertEquals(
+        1, jdbc.queryForObject("SELECT COUNT(*) FROM posts WHERE id = ?", Integer.class, id));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"application/xml", "text/html"})
+  void unsupportedAcceptDoesNotIncrementViewCount(String accept) throws Exception {
+    long id = createStoredPost();
+
+    mvc.perform(get("/posts/{id}", id).accept(accept))
+        .andExpect(status().isNotAcceptable())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"));
+
+    assertEquals(
+        0L, jdbc.queryForObject("SELECT view_count FROM posts WHERE id = ?", Long.class, id));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"application/json", "application/*", "*/*"})
+  void compatibleAcceptReturnsJsonDetailAndIncrementsViewCount(String accept) throws Exception {
+    long id = createStoredPost();
+
+    mvc.perform(get("/posts/{id}", id).accept(accept))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.data.viewCount").value(1));
+
+    assertEquals(
+        1L, jdbc.queryForObject("SELECT view_count FROM posts WHERE id = ?", Long.class, id));
+  }
+
+  private long createStoredPost() {
+    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
+    return jdbc.queryForObject("SELECT id FROM posts", Long.class);
   }
 
   @Test

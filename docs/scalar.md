@@ -52,6 +52,7 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 | POST | `/posts` | 게시글 생성 | 201 |
 | GET | `/posts` | page·size 페이지네이션과 선택적 category 필터, ID 오름차순 | 200 |
 | GET | `/posts/{id}` | 단건 조회 | 200 |
+| HEAD | `/posts/{id}` | 조회수 증가 없이 응답 헤더 확인. 본문 없음 | 200 |
 | PUT | `/posts/{id}` | 제목·본문 수정 | 200 |
 | DELETE | `/posts/{id}` | 게시글 삭제 | 200 |
 
@@ -60,6 +61,9 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 내부 오류 처리용 `ApiErrorController`는 `@Hidden`으로 명시적으로 제외한다.
 
 - 생성 요청은 title, content, category, author가 필수다. 문자열은 공백만 입력할 수 없다.
+- 제목은 최대 200, 본문은 10,000, 작성자는 50까지 허용하며 생성·수정에 동일한 상한을 적용한다.
+  길이는 UTF-16 코드 단위이며 초과 입력은 VALIDATION_FAILED와 해당 필드의 INVALID_LENGTH로 거부한다.
+  요청 스키마의 maxLength에도 상한을 제공한다. 목록 응답은 본문 전체를 유지한다.
 - category는 GENERAL, QUESTION, INFORMATION 중 하나다.
 - 목록 조회는 page=0, size=20이 기본값이며 size는 1~100이다. category를 생략하거나 비우면 전체 분류를 조회한다.
   카테고리 필터링 후 페이지를 나누며 마지막 페이지를 넘으면 빈 배열을 반환한다.
@@ -71,6 +75,8 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 - viewCount는 0부터 시작한다. 상세 조회 성공마다 1 증가한 값을 반환하며 목록 조회에서는 증가하지 않는다.
   같은 사용자의 반복 상세 조회도 매번 집계하고, 제목·본문 수정 시 조회수는 유지한다.
   HTTP 상세 조회는 Facade가 증가와 조회를 조율하며, 내부 Query 서비스의 단건 조회는 조회수를 변경하지 않는다.
+- HEAD 단건 요청은 순수 Query를 사용하므로 조회수를 증가시키지 않고 응답 본문을 보내지 않는다.
+  게시글이 없으면 404, 지원하지 않는 Accept이면 406을 반환한다.
 
 ## 문서 설정의 책임 분리
 

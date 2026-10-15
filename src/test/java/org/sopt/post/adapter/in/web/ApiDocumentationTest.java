@@ -98,6 +98,8 @@ class ApiDocumentationTest {
                 .value("#/components/responses/PostNotFound"))
         .andExpect(jsonPath("$.paths['/posts/{id}'].put.responses['200']").exists())
         .andExpect(jsonPath("$.paths['/posts/{id}'].delete.responses['200']").exists())
+        .andExpect(jsonPath("$.paths['/posts/{id}'].head.summary").value("게시글 응답 헤더 조회"))
+        .andExpect(jsonPath("$.paths['/posts/{id}'].head.responses['200'].content").doesNotExist())
         .andExpect(
             jsonPath("$.components.responses.PostNotFound.content['application/json'].example.code")
                 .value("POST_NOT_FOUND"))
@@ -155,6 +157,27 @@ class ApiDocumentationTest {
         .andExpect(
             jsonPath("$.components.schemas.BaseResponsePostResponse.properties.data.$ref")
                 .value("#/components/schemas/PostResponse"));
+  }
+
+  @Test
+  void documentsPostLengthLimits() throws Exception {
+    mvc.perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$.components.schemas.CreatePostRequest.properties.title.maxLength")
+                .value(200))
+        .andExpect(
+            jsonPath("$.components.schemas.CreatePostRequest.properties.content.maxLength")
+                .value(10000))
+        .andExpect(
+            jsonPath("$.components.schemas.CreatePostRequest.properties.author.maxLength")
+                .value(50))
+        .andExpect(
+            jsonPath("$.components.schemas.UpdatePostRequest.properties.title.maxLength")
+                .value(200))
+        .andExpect(
+            jsonPath("$.components.schemas.UpdatePostRequest.properties.content.maxLength")
+                .value(10000));
   }
 
   @Test

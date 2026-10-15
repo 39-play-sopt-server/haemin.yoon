@@ -30,6 +30,9 @@ final class RequestValidationErrors {
     if ("NotBlank".equals(constraint) || "NotNull".equals(constraint)) {
       return new ValidationViolation(field, "REQUIRED", "필수 입력값입니다.");
     }
+    if ("Size".equals(constraint)) {
+      return new ValidationViolation(field, "INVALID_LENGTH", "허용된 길이 범위를 벗어났습니다.");
+    }
     // 미등록 제약의 메시지에도 내부 정보나 입력값이 들어갈 수 있으므로 안전한 문구를 사용합니다.
     return new ValidationViolation(field, "INVALID_VALUE", "입력값이 올바르지 않습니다.");
   }

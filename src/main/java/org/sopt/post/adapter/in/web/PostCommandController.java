@@ -11,6 +11,7 @@ import org.sopt.post.adapter.in.web.dto.request.UpdatePostRequest;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "게시글", description = "게시글 생성·조회·수정·삭제")
 @ApiResponse(responseCode = "500", ref = "#/components/responses/InternalServerError")
 @RestController
-@RequestMapping("/posts")
+@RequestMapping(value = "/posts", produces = MediaType.APPLICATION_JSON_VALUE)
 public class PostCommandController {
   private final PostCommandUseCase useCase;
 

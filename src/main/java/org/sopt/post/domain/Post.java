@@ -18,6 +18,12 @@ import org.sopt.post.domain.exception.PostException;
 @Entity
 @Table(name = "posts")
 public class Post {
+  /** 입력 길이 상한입니다. DTO의 Size와 동일하게 UTF-16 코드 단위로 계산합니다. */
+  public static final int MAX_TITLE_LENGTH = 200;
+
+  public static final int MAX_CONTENT_LENGTH = 10_000;
+  public static final int MAX_AUTHOR_LENGTH = 50;
+
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -59,6 +65,9 @@ public class Post {
     }
     if (author == null || author.isBlank()) {
       throw new PostException(PostErrorCode.INVALID_AUTHOR);
+    }
+    if (author.length() > MAX_AUTHOR_LENGTH) {
+      throw new PostException(PostErrorCode.AUTHOR_TOO_LONG);
     }
     this.title = title;
     this.content = content;
@@ -108,12 +117,18 @@ public class Post {
     if (title == null || title.isBlank()) {
       throw new PostException(PostErrorCode.INVALID_TITLE);
     }
+    if (title.length() > MAX_TITLE_LENGTH) {
+      throw new PostException(PostErrorCode.TITLE_TOO_LONG);
+    }
   }
 
   /** 생성과 수정에 동일한 본문 규칙을 적용해 수정으로 생성 검증을 우회하지 못하게 합니다. */
   private static void validateContent(String content) {
     if (content == null || content.isBlank()) {
       throw new PostException(PostErrorCode.INVALID_CONTENT);
+    }
+    if (content.length() > MAX_CONTENT_LENGTH) {
+      throw new PostException(PostErrorCode.CONTENT_TOO_LONG);
     }
   }
 }

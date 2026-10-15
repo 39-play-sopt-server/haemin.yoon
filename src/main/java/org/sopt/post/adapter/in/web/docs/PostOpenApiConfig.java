@@ -32,12 +32,14 @@ public class PostOpenApiConfig {
                 "PostCreateBadRequest",
                 requestErrors(
                     "제목·본문·작성자는 공백일 수 없고 카테고리는 필수입니다(VALIDATION_FAILED). "
+                        + "요청 스키마의 maxLength 초과 시에도 VALIDATION_FAILED를 반환하며 필드 오류 코드는 INVALID_LENGTH입니다. "
                         + "본문 누락, 잘못된 JSON 또는 허용되지 않은 카테고리는 INVALID_REQUEST를 반환합니다.",
                     List.of("title", "content", "category", "author")))
             .addResponses(
                 "PostUpdateBadRequest",
                 requestErrors(
                     "수정할 제목·본문은 공백일 수 없습니다(VALIDATION_FAILED). "
+                        + "요청 스키마의 maxLength 초과 시에도 VALIDATION_FAILED를 반환하며 필드 오류 코드는 INVALID_LENGTH입니다. "
                         + "게시글 ID 형식 오류, 본문 누락 또는 잘못된 JSON은 INVALID_REQUEST를 반환합니다.",
                     List.of("title", "content")))
             .addResponses(

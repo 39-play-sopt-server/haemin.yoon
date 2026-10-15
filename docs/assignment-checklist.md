@@ -11,6 +11,7 @@ Spring Boot HTTP 서버 기준으로 구현 위치와 검증 방법을 정리합
 | Spring 객체 관리 | Main의 컴포넌트 스캔, 서비스·저장소의 생성자 주입 | PostHttpApiTest의 실제 Spring 컨텍스트 |
 | 게시글 작성·목록·단건·수정·삭제 | PostCommandController와 PostQueryController의 `/posts` HTTP 매핑 | PostHttpApiTest |
 | 빈 제목·본문 금지 | @Valid 요청 DTO 검증 + Post의 생성·수정 검증 | PostCommandQueryServiceTest, PostCommandQueryControllerTest, PostHttpApiTest |
+| 입력 길이 제한 | Post의 제목 200·본문 10,000·작성자 50, 도메인과 DTO가 동일 상한 적용 | PostLengthValidationTest, PostLengthHttpTest, ApiDocumentationTest |
 | 필드별 입력 오류 | VALIDATION_FAILED와 정렬된 violations 목록, 입력값·내부 메시지 비노출 | PostHttpApiTest, GlobalExceptionHandlerTest |
 | 필수 카테고리·작성자와 작성 시각 | Category와 Post, 요청·응답 DTO 변환 | 서비스·HTTP 테스트 |
 | 목록 페이지네이션 | PostListQuery의 범위 검증, DB OFFSET/LIMIT, 기본 page=0·size=20, size 최대 100 | PostListingTest |
@@ -65,4 +66,4 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 - requestId·traceId와 로그 연동, 인증·인가, 요청 횟수 제한 기능은 구현하지 않았습니다.
 - offset 페이지네이션은 동시 삭제 시 페이지 사이 결과 이동을 허용하고 총 개수·총 페이지 수를 제공하지 않습니다.
 - 동시성 자동 테스트는 H2 기반이며 운영 PostgreSQL 부하·잠금 대기는 별도 검증이 필요합니다.
-- 필드별 검증 목록은 현재 생성·수정 요청 본문에 적용합니다. 경로 ID의 양수 제약이나 길이 제한은 추가하지 않았습니다.
+- 필드별 검증 목록은 생성·수정 요청 본문에 적용합니다. 길이는 UTF-16 코드 단위이며 기존 DB의 대형 본문은 축약하지 않습니다. 경로 ID의 양수 제약은 추가하지 않았습니다.
