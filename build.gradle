@@ -8,6 +8,12 @@ plugins {
 group = 'org.sopt'
 version = '1.0-SNAPSHOT'
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
 repositories {
     mavenCentral()
 }
@@ -17,25 +23,40 @@ configurations {
 }
 
 dependencies {
+    // Lombok: 반복 코드 생성
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+
+    // 웹 API 및 요청 검증
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // API 문서: OpenAPI 및 Scalar
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-scalar:3.1.1'
     implementation 'com.scalar.maven:scalar-webmvc:0.6.74'
     implementation 'com.scalar.maven:scalar-core:0.6.74'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // 데이터 영속성: JPA 및 PostgreSQL
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // 스키마 마이그레이션: 애플리케이션 실행용 Flyway
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
-    runtimeOnly 'org.postgresql:postgresql'
+
+    // 스키마 마이그레이션: 수동 baseline 작업용 Flyway CLI
     flywayCli 'org.flywaydb:flyway-commandline'
     flywayCli 'org.flywaydb:flyway-database-postgresql'
     flywayCli 'org.postgresql:postgresql'
-    testRuntimeOnly 'com.h2database:h2'
+
+    // 테스트: Spring MVC 및 JUnit
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation platform('org.junit:junit-bom:6.0.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // 테스트 전용 데이터베이스
+    testRuntimeOnly 'com.h2database:h2'
 }
 
 test {

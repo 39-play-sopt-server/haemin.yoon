@@ -51,12 +51,18 @@ flowchart LR
 | `POST /posts` | `@PostMapping` | 201 |
 | `GET /posts` | `@GetMapping` | 200 |
 | `GET /posts/{id}` | `@GetMapping("/{id}")` | 200 |
+| `HEAD /posts/{id}` | `@RequestMapping(method = HEAD)` | 200 |
 | `PUT /posts/{id}` | `@PutMapping("/{id}")` | 200 |
 | `DELETE /posts/{id}` | `@DeleteMapping("/{id}")` | 200 |
 
 JSON 본문은 `@RequestBody`로 요청 record에 바인딩한 뒤 생성·수정 요청에 `@Valid`를 적용합니다. 경로 ID는
 `@PathVariable("id")`로 받습니다. 수정은 제목·본문을 모두 전달하는 기존 계약을 따릅니다.
 생성·수정·삭제는 성공 메시지와 null 데이터를 반환합니다. 삭제도 응답 본문을 유지하므로 200입니다.
+
+게시글 컨트롤러는 `produces = application/json`으로 응답 형식을 선언합니다.
+지원하지 않는 Accept는 컨트롤러 실행 전에 406으로 거부하므로 생성·수정·삭제·조회수 증가가 일어나지 않습니다.
+Accept 생략, `application/json`, 호환되는 와일드카드 요청은 기존처럼 처리합니다.
+응답 형식 정책은 게시글 웹 어댑터에 두며, 다른 도메인은 자신의 API 계약에 맞게 선언합니다.
 
 `BaseResponse<T>`는 기존 `success`, `code`, `message`, `data`에 `violations` 배열을 추가합니다.
 성공·일반 실패에는 빈 배열을, 입력 검증 실패에는 필드별 오류 목록을 반환합니다.
@@ -116,10 +122,20 @@ HTTP 입력의 필수값을 검사합니다. 여러 필드 오류를 모아 `VAL
 게시글 조회의 404보다 입력 검증의 400을 먼저 반환합니다. 빈 JSON 객체 `{}`도 필수값 검증 대상이며,
 빈 본문·JSON의 `null`·깨진 JSON은 역직렬화 또는 필수 본문 처리 단계의 INVALID_REQUEST입니다.
 도메인의 검증도 유지해 HTTP를 거치지 않는 호출에서도 잘못된 게시글 생성·수정을 거부합니다.
-길이 제한·내용 정규화·새 ID 제약 등 기존 요구에 없는 정책은 추가하지 않습니다.
+길이 상한은 제목 200, 본문 10,000, 작성자 50이며 최대값까지 허용하고 초과 입력은 거부합니다.
+`Post`의 길이 상수가 정책을 정의하고 도메인 검증과 요청 DTO의 `@Size`가 같은 상수를 사용합니다.
+길이는 Java `String.length()`와 `@Size`에 맞춰 UTF-16 코드 단위로 계산합니다.
+예를 들어 일반 한글은 1, 보충 문자 영역의 이모지는 2로 계산하며, 공백을 제거하거나 내용을 잘라 저장하지 않습니다.
+생성·수정 모두 검증하며, 수정 검증 실패 시 제목·본문 전체를 보존합니다.
+HTTP 외 호출에서도 초과 입력은 TITLE_TOO_LONG·CONTENT_TOO_LONG·AUTHOR_TOO_LONG으로 거부합니다.
+길이 정책 변경은 게시글 도메인의 상수를 수정하고 경계값 테스트·문서를 함께 갱신합니다.
+다른 도메인의 길이 정책은 해당 도메인에 둡니다.
+DB의 TEXT 타입과 기존 데이터는 유지하므로 이 제한은 새 생성·수정 입력에 적용됩니다.
+목록은 본문 전체를 계속 반환하며, 기존에 저장된 대형 본문의 응답 크기를 줄이지는 않습니다.
 
 `RequestValidationErrors`는 BindingResult를 불변 `ValidationViolation(field, code, message)` 목록으로 변환합니다.
-NotBlank·NotNull은 공개 코드 REQUIRED로 매핑합니다. 미등록 제약은 INVALID_VALUE와 안전한 공통 문구를 사용합니다.
+NotBlank·NotNull은 공개 코드 REQUIRED로, Size는 INVALID_LENGTH로 매핑합니다.
+전역 변환기는 게시글 전용 길이 수치를 모르며 미등록 제약은 INVALID_VALUE와 안전한 공통 문구를 사용합니다.
 필드 오류와 객체 전체 오류를 모두 포함하고, 객체 전체 오류의 field는 null입니다.
 동일한 공개 오류는 중복 제거하고 field(null 우선)·code·message 순으로 정렬합니다.
 클라이언트는 오류 발생 순서에 의존하지 않고 field/code를 사용해야 합니다.
@@ -232,6 +248,13 @@ List를 반환하는 저장소 메서드를 사용하므로 총 개수를 위한
 `GET /posts/{id}` 성공마다 1 증가하고 증가한 값을 반환하며 목록 조회는 값을 변경하지 않습니다.
 같은 사용자의 반복 요청도 매번 집계합니다.
 
+`HEAD /posts/{id}`는 명시적인 웹 매핑에서 순수 Query를 호출하므로 조회수를 증가시키지 않습니다.
+GET과 같은 응답 표현을 구성하고 서블릿 컨테이너가 본문을 생략해 응답 헤더만 전송합니다.
+없는 게시글은 404이며, 지원하지 않는 Accept는 406입니다. HTTP 메서드 구분은 웹 어댑터가 담당하고,
+기존 Query 서비스와 Facade의 트랜잭션 책임은 유지합니다.
+`PostHeadHttpTest`는 실제 내장 서버에서 반복 HEAD의 조회수 비증가, GET의 증가 유지,
+404·406 응답과 본문 생략을 검증합니다.
+
 HTTP 상세 조회는 `PostFacade.getPostDetail()`을 호출합니다. Facade는
 `PostCommandUseCase.increaseViewCount()`로 DB에서 `view_count = view_count + 1`을 실행한 뒤
 `PostQueryUseCase.getPost()`로 게시글을 읽습니다. Command는 `SavePostPort`, Query는 `LoadPostPort`만 사용합니다.
@@ -302,6 +325,9 @@ PostDatabaseTest는 서비스 수정의 커밋·메타데이터 유지, 도메�
 현재 요구사항과 검증 위치는 [과제 요구사항 체크리스트](assignment-checklist.md)를 참고하세요.
 
 ## 서버 실행 및 검증
+
+빌드·테스트·실행 기준은 JDK 21이며 `build.gradle`의 Java toolchain으로 고정합니다.
+터미널이나 IDE의 기본 JDK가 달라도 Gradle은 설치된 JDK 21을 사용합니다.
 
 설정한 PostgreSQL 서버와 DB를 준비한 뒤 `./gradlew bootRun`으로 실행합니다.
 기본 주소는 `http://localhost:8080`이며 실행 설정은 `src/main/resources/application.yml`입니다.
