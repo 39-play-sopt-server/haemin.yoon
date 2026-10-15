@@ -1,39 +1,92 @@
 package org.sopt.global.exception;
 
-import java.util.function.Supplier;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sopt.global.response.BaseResponse;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-/**
- * 컨트롤러의 서버 작업을 실행하고 성공·예외를 일관된 BaseResponse로 변환합니다.
- * 각 컨트롤러 메서드에 같은 try-catch가 반복되지 않도록 실행할 작업을 전달받습니다.
- * 현재는 직접 호출하는 실행 래퍼이며, 프레임워크가 자동으로 적용하는 예외 핸들러는 아닙니다.
- */
-public class GlobalExceptionHandler {
-  private static final Logger LOGGER = Logger.getLogger(GlobalExceptionHandler.class.getName());
+/** 도메인 실패와 Spring MVC 오류를 동일한 JSON 계약으로 변환합니다. */
+@RestControllerAdvice
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+  private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-  /**
-   * 결과가 있는 작업을 처리합니다. 예상된 실패는 해당 오류 코드를 그대로 응답합니다.
-   * 예상 밖의 RuntimeException은 서버에 원인을 기록하고 클라이언트에는 일반 메시지만 전달합니다.
-   * 복구를 전제로 하지 않는 Error까지 잡지는 않습니다.
-   */
-  public <T> BaseResponse<T> handle(Supplier<T> action, String successMessage) {
-    try {
-      return BaseResponse.success(action.get(), successMessage);
-    } catch (BaseException e) {
-      return BaseResponse.failure(e.getErrorCode());
-    } catch (RuntimeException e) {
-      LOGGER.log(Level.SEVERE, "서버 요청 처리 중 예기치 않은 오류가 발생했습니다.", e);
-      return BaseResponse.failure(GlobalErrorCode.INTERNAL_SERVER_ERROR);
-    }
+  @Override
+  protected @Nullable ResponseEntity<Object> handleMethodArgumentNotValid(
+      MethodArgumentNotValidException exception,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    var body =
+        BaseResponse.failure(
+            GlobalErrorCode.VALIDATION_FAILED,
+            RequestValidationErrors.from(exception.getBindingResult()));
+    return handleExceptionInternal(exception, body, headers, status, request);
   }
 
-  /** 반환값 없는 생성·수정·삭제도 같은 처리 흐름을 사용하며, 성공 데이터는 null로 반환합니다. */
-  public BaseResponse<Void> handle(Runnable action, String successMessage) {
-    return handle(() -> {
-      action.run();
-      return null;
-    }, successMessage);
+  @ExceptionHandler(BaseException.class)
+  public ResponseEntity<BaseResponse<Void>> handleBaseException(BaseException exception) {
+    ErrorCode code = exception.getErrorCode();
+    if (code.getHttpStatus().is5xxServerError()) {
+      LOGGER.error("서버 요청 처리 실패: code={}", code.getCode(), exception);
+    }
+    return ResponseEntity.status(code.getHttpStatus())
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BaseResponse.failure(code));
+  }
+
+  /** 커밋 시 발생하는 낙관적 잠금 충돌도 도메인에 관계없이 동일한 409 계약으로 처리합니다. */
+  @ExceptionHandler(OptimisticLockingFailureException.class)
+  public ResponseEntity<BaseResponse<Void>> handleOptimisticLockingFailure(
+      OptimisticLockingFailureException exception) {
+    return ResponseEntity.status(GlobalErrorCode.CONFLICT.getHttpStatus())
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BaseResponse.failure(GlobalErrorCode.CONFLICT));
+  }
+
+  /** MVC가 결정한 상태와 Allow 등의 헤더, 응답 커밋 여부 처리는 상위 구현에 맡깁니다. */
+  @Override
+  protected @Nullable ResponseEntity<Object> handleExceptionInternal(
+      Exception exception,
+      @Nullable Object body,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    if (status.is5xxServerError()) {
+      LOGGER.error("Spring MVC 요청 처리 실패: status={}", status.value(), exception);
+    }
+    return super.handleExceptionInternal(exception, body, headers, status, request);
+  }
+
+  @Override
+  protected ResponseEntity<Object> createResponseEntity(
+      @Nullable Object body, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+    HttpHeaders responseHeaders = new HttpHeaders();
+    responseHeaders.putAll(headers);
+    // 오류 응답은 항상 JSON입니다. Accept 불일치(406)도 같은 계약으로 설명합니다.
+    responseHeaders.setContentType(MediaType.APPLICATION_JSON);
+    Object responseBody =
+        body instanceof BaseResponse<?>
+            ? body
+            : BaseResponse.failure(GlobalErrorCode.fromStatus(status));
+    return new ResponseEntity<>(responseBody, responseHeaders, status);
+  }
+
+  /** checked exception도 누락하지 않되, JVM의 Error까지 복구 가능한 예외로 취급하지 않습니다. */
+  @ExceptionHandler(Exception.class)
+  public ResponseEntity<BaseResponse<Void>> handleUnexpectedException(Exception exception) {
+    LOGGER.error("서버 요청 처리 중 예기치 않은 오류가 발생했습니다.", exception);
+    return ResponseEntity.internalServerError()
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BaseResponse.failure(GlobalErrorCode.INTERNAL_SERVER_ERROR));
   }
 }

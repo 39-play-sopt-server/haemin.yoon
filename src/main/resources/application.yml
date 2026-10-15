@@ -1,0 +1,37 @@
+spring:
+  jackson:
+    deserialization:
+      # 정수 필드로 보낸 소수를 절삭해 다른 값으로 처리하지 않습니다.
+      accept-float-as-int: false
+    datatype:
+      enum:
+        # enum은 공개 문자열 값으로만 받고 선언 순번으로 해석하지 않습니다.
+        fail-on-numbers-for-enums: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/assignment}
+    username: ${DB_USERNAME:${user.name}}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    locations: classpath:db/migration
+    default-schema: public
+    baseline-on-migrate: false
+    clean-disabled: true
+
+springdoc:
+  packages-to-scan: org.sopt
+  override-with-generic-response: false
+
+scalar:
+  enabled: true
+  url: /v3/api-docs
+  path: /scalar
+  theme: DEEP_SPACE
+  show-operation-id: true
+  operation-title-source: summary
+  default-open-first-tag: false
+  schema-property-order: alpha
+  dark-mode: true
