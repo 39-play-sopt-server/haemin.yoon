@@ -181,6 +181,28 @@ class ApiDocumentationTest {
   }
 
   @Test
+  void validationViolationRequiresAllPropertiesAndAllowsNullField() throws Exception {
+    mvc.perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                "$.components.schemas.ErrorResponse.properties.violations.items.required",
+                containsInAnyOrder("field", "code", "message")))
+        .andExpect(
+            jsonPath(
+                "$.components.schemas.ErrorResponse.properties.violations.items.properties.field.type",
+                containsInAnyOrder("string", "null")))
+        .andExpect(
+            jsonPath(
+                    "$.components.schemas.ErrorResponse.properties.violations.items.properties.code.type")
+                .value("string"))
+        .andExpect(
+            jsonPath(
+                    "$.components.schemas.ErrorResponse.properties.violations.items.properties.message.type")
+                .value("string"));
+  }
+
+  @Test
   void documentsRequiredVersionAndEditConflict() throws Exception {
     mvc.perform(get("/v3/api-docs"))
         .andExpect(status().isOk())

@@ -29,6 +29,7 @@ public class OpenApiConfig {
                     .description("오류 필드. 객체 전체 오류는 null"))
             .addProperty("code", new StringSchema())
             .addProperty("message", new StringSchema());
+    violation.setRequired(List.of("field", "code", "message"));
     var error = new ObjectSchema();
     error
         .addProperty("success", new BooleanSchema()._enum(List.of(false)))
