@@ -208,23 +208,29 @@ class PostViewCountTest {
   void concurrentDetailsDoNotLoseIncrements() throws Exception {
     long id = createPost();
     var start = new CountDownLatch(1);
+    var ready = new CountDownLatch(8);
+    var counts = new ArrayList<Long>();
     try (var executor = Executors.newFixedThreadPool(8)) {
-      var futures = new ArrayList<Future<?>>();
+      var futures = new ArrayList<Future<Long>>();
       for (int i = 0; i < 40; i++) {
         futures.add(
             executor.submit(
                 () -> {
+                  ready.countDown();
                   assertTrue(start.await(10, TimeUnit.SECONDS));
-                  facade.getPostDetail(id);
-                  return null;
+                  return facade.getPostDetail(id).getViewCount();
                 }));
       }
+      assertTrue(ready.await(10, TimeUnit.SECONDS));
       start.countDown();
       for (var future : futures) {
-        future.get(20, TimeUnit.SECONDS);
+        counts.add(future.get(20, TimeUnit.SECONDS));
       }
     }
     assertEquals(40, storedCount(id));
+    assertEquals(
+        java.util.stream.LongStream.rangeClosed(1, 40).boxed().toList(),
+        counts.stream().sorted().toList());
   }
 
   private long createPost() {
