@@ -37,6 +37,44 @@ class PostHttpApiTest {
     jdbc.update("DELETE FROM posts");
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"0", "1", "2", "-1", "3", "1.0", "1e0", "\"0\"", "\"1\"", "\"2\""})
+  void rejectsNumericCategoryWithoutSaving(String category) throws Exception {
+    mvc.perform(
+            post("/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"title":"제목","content":"본문","category":%s,"author":"작성자"}
+                    """
+                        .formatted(category)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.data").value(nullValue()))
+        .andExpect(jsonPath("$.violations", empty()));
+    assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM posts", Integer.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"GENERAL", "QUESTION", "INFORMATION"})
+  void acceptsNamedCategoryAndPreservesItsPublicValue(String category) throws Exception {
+    mvc.perform(
+            post("/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"title":"제목","content":"본문","category":"%s","author":"작성자"}
+                    """
+                        .formatted(category)))
+        .andExpect(status().isCreated());
+    assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM posts", Integer.class));
+    assertEquals(category, jdbc.queryForObject("SELECT category FROM posts", String.class));
+    mvc.perform(get("/posts"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].category").value(category));
+  }
+
   @Test
   void performsCrudThroughHttpWithSharedStorage() throws Exception {
     mvc.perform(

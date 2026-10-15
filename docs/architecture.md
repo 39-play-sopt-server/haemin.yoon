@@ -120,6 +120,10 @@ HTTP 입력의 필수값을 검사합니다. 여러 필드 오류를 모아 `VAL
 생성 요청은 title·content·author에 NotBlank, category에 NotNull을 적용합니다.
 수정 요청은 title·content에 NotBlank, 필수 version에 NotNull·PositiveOrZero를 적용합니다.
 정수 필드로 보낸 소수는 Jackson에서 절삭하지 않고 INVALID_REQUEST로 거부합니다.
+JSON enum 입력은 공개 문자열 값만 허용하도록 전역 Jackson 설정에서 숫자 순번 변환을 금지합니다.
+게시글 category는 GENERAL·QUESTION·INFORMATION만 허용하며, `1`이나 `"1"`은
+역직렬화 단계에서 HTTP 400·INVALID_REQUEST로 거부하고 게시글을 저장하지 않습니다.
+새 도메인의 JSON enum에도 같은 정책이 적용되며, 도메인별 허용 값과 변환은 각 웹 어댑터가 정의합니다.
 검증은 컨트롤러 호출 전에 실행됩니다. 따라서 없는 게시글을 수정하더라도 본문이 유효하지 않으면
 게시글 조회의 404보다 입력 검증의 400을 먼저 반환합니다. 빈 JSON 객체 `{}`도 필수값 검증 대상이며,
 빈 본문·JSON의 `null`·깨진 JSON은 역직렬화 또는 필수 본문 처리 단계의 INVALID_REQUEST입니다.
