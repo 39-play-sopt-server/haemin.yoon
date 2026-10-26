@@ -7,18 +7,16 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import org.sopt.global.entity.BaseEntity;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 
 /** 게시글의 JPA 매핑과 생성·수정 시 유효성 규칙을 관리합니다. */
 @Entity
 @Table(name = "posts")
-public class Post {
+public class Post extends BaseEntity {
   /** 입력 길이 상한입니다. DTO의 Size와 동일하게 UTF-16 코드 단위로 계산합니다. */
   public static final int MAX_TITLE_LENGTH = 200;
 
@@ -42,9 +40,6 @@ public class Post {
   @Column(nullable = false, columnDefinition = "text")
   private String author;
 
-  @Column(name = "created_at", nullable = false, updatable = false)
-  private LocalDateTime createdAt;
-
   /** 조회수는 전용 출력 포트의 원자적 UPDATE로 변경하며 일반 엔티티 수정에서 제외합니다. */
   @Column(name = "view_count", nullable = false, updatable = false)
   private long viewCount;
@@ -56,11 +51,6 @@ public class Post {
 
   /** JPA가 DB의 행을 엔티티로 복원할 때 사용합니다. */
   protected Post() {}
-
-  @PrePersist
-  private void normalizeCreatedAt() {
-    createdAt = createdAt.truncatedTo(ChronoUnit.MICROS);
-  }
 
   /** 새 게시글은 ID 없이 생성하고, 저장 시 DB가 ID를 부여합니다. */
   public Post(String title, String content, Category category, String author) {
@@ -80,7 +70,6 @@ public class Post {
     this.content = content;
     this.category = category;
     this.author = author;
-    this.createdAt = LocalDateTime.now();
   }
 
   public Long getId() {
@@ -101,10 +90,6 @@ public class Post {
 
   public String getAuthor() {
     return author;
-  }
-
-  public LocalDateTime getCreatedAt() {
-    return createdAt;
   }
 
   public long getViewCount() {

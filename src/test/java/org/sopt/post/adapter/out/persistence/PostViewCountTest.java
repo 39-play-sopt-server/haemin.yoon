@@ -102,6 +102,14 @@ class PostViewCountTest {
   }
 
   @Test
+  void viewIncrementPreservesUpdatedAt() {
+    long id = createPost();
+    var updatedAt = queries.getPost(id).getUpdatedAt();
+    assertEquals(updatedAt, facade.getPostDetail(id).getUpdatedAt());
+    assertEquals(updatedAt, queries.getPost(id).getUpdatedAt());
+  }
+
+  @Test
   void updatingContentDoesNotResetViews() {
     long id = createPost();
     facade.getPostDetail(id);

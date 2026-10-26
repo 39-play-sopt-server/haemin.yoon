@@ -146,7 +146,11 @@ class PostDatabaseTest {
 
   @Test
   void savesIntoDatabaseAndReloadsEveryField() {
+    LocalDateTime beforeCreation = LocalDateTime.now();
     Post pending = new Post("제목", "본문", Category.QUESTION, "작성자");
+    assertNotNull(pending.getCreatedAt());
+    assertFalse(pending.getCreatedAt().isBefore(beforeCreation));
+    assertFalse(pending.getCreatedAt().isAfter(LocalDateTime.now()));
     writer.save(pending);
     Post loaded = reader.findAll(new PostListQuery(0, 100, null)).getFirst();
     assertEquals(
@@ -156,9 +160,32 @@ class PostDatabaseTest {
     assertEquals("제목", loaded.getTitle());
     assertEquals(Category.QUESTION, loaded.getCategory());
     assertEquals("작성자", loaded.getAuthor());
+    assertEquals(0, pending.getCreatedAt().getNano() % 1000);
+    assertEquals(pending.getCreatedAt(), loaded.getCreatedAt());
+    assertEquals(pending.getCreatedAt(), pending.getUpdatedAt());
+    assertEquals(pending.getUpdatedAt(), loaded.getUpdatedAt());
+  }
+
+  @Test
+  void editingPostUpdatesTimestampWhileReadingPreservesIt() {
+    var post = new Post("제목", "본문", Category.GENERAL, "작성자");
+    writer.save(post);
+    LocalDateTime previousUpdate = LocalDateTime.of(2020, 1, 1, 0, 0);
+    jdbc.update("UPDATE posts SET updated_at = ? WHERE id = ?", previousUpdate, post.getId());
+
+    assertEquals(previousUpdate, reader.findById(post.getId()).orElseThrow().getUpdatedAt());
+    LocalDateTime beforeUpdate =
+        LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+    commands.updatePost(post.getId(), "수정 제목", "수정 본문", 0L);
+
+    var updated = reader.findById(post.getId()).orElseThrow();
+    assertTrue(updated.getUpdatedAt().isAfter(previousUpdate));
+    assertFalse(updated.getUpdatedAt().isBefore(beforeUpdate));
+    assertFalse(updated.getUpdatedAt().isAfter(LocalDateTime.now()));
+    assertEquals(0, updated.getUpdatedAt().getNano() % 1000);
+    assertEquals(post.getCreatedAt(), updated.getCreatedAt());
     assertEquals(
-        pending.getCreatedAt().withNano(pending.getCreatedAt().getNano() / 1000 * 1000),
-        loaded.getCreatedAt());
+        updated.getUpdatedAt(), reader.findById(post.getId()).orElseThrow().getUpdatedAt());
   }
 
   @Test

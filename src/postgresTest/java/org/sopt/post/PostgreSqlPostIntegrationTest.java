@@ -152,7 +152,7 @@ class PostgreSqlPostIntegrationTest {
       assertEquals(18, connection.getMetaData().getDatabaseMajorVersion());
     }
     assertEquals(
-        List.of("1", "2", "3", "4"),
+        List.of("1", "2", "3", "4", "5"),
         jdbc.queryForList(
             "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank",
             String.class));
@@ -412,14 +412,19 @@ class PostgreSqlPostIntegrationTest {
               .schemas(schema)
               .locations("classpath:db/migration")
               .load();
-      assertEquals(1, flyway.migrate().migrationsExecuted);
+      assertEquals(2, flyway.migrate().migrationsExecuted);
       var rows =
-          jdbc.queryForList("SELECT title, content, view_count, version FROM " + schema + ".posts");
+          jdbc.queryForList(
+              "SELECT title, content, view_count, version, created_at, updated_at FROM "
+                  + schema
+                  + ".posts");
       assertEquals(1, rows.size());
       assertEquals("전환 전 제목", rows.getFirst().get("title"));
       assertEquals("전환 전 본문", rows.getFirst().get("content"));
       assertEquals(17L, rows.getFirst().get("view_count"));
       assertEquals(0L, rows.getFirst().get("version"));
+      assertNotNull(rows.getFirst().get("updated_at"));
+      assertEquals(rows.getFirst().get("created_at"), rows.getFirst().get("updated_at"));
       assertEquals(0, flyway.migrate().migrationsExecuted);
     } finally {
       jdbc.execute("DROP SCHEMA " + schema + " CASCADE");
@@ -461,19 +466,22 @@ class PostgreSqlPostIntegrationTest {
               .load();
       assertThrows(FlywayException.class, flyway::migrate);
       flyway.baseline();
-      assertEquals(3, flyway.migrate().migrationsExecuted);
+      assertEquals(4, flyway.migrate().migrationsExecuted);
       flyway.validate();
       try (var rows =
-          statement.executeQuery("SELECT title, content, view_count, version FROM posts")) {
+          statement.executeQuery(
+              "SELECT title, content, view_count, version, created_at, updated_at FROM posts")) {
         assertTrue(rows.next());
         assertEquals("기존 제목", rows.getString("title"));
         assertEquals("기존 본문", rows.getString("content"));
         assertEquals(0, rows.getLong("view_count"));
         assertEquals(0, rows.getLong("version"));
+        assertNotNull(rows.getTimestamp("updated_at"));
+        assertEquals(rows.getTimestamp("created_at"), rows.getTimestamp("updated_at"));
         assertFalse(rows.next());
       }
       assertEquals(
-          List.of("BASELINE:1", "SQL:2", "SQL:3", "SQL:4"),
+          List.of("BASELINE:1", "SQL:2", "SQL:3", "SQL:4", "SQL:5"),
           jdbc.queryForList(
               "SELECT type || ':' || version FROM "
                   + schema
