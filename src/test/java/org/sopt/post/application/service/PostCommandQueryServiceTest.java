@@ -26,6 +26,25 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
   private final PostQueryUseCase queries = new PostQueryService(repository);
 
   @Test
+  void cursorUsesLastReturnedPostAndLookaheadOnlyDeterminesHasNext() {
+    for (int index = 0; index < 3; index++)
+      commands.createPost("글" + index, "본문", Category.GENERAL, 1L);
+    var first = queries.getPosts(new PostListQuery(null, 2, null));
+    assertEquals(
+        java.util.List.of("글2", "글1"),
+        first.posts().stream().map(org.sopt.post.domain.Post::getTitle).toList());
+    assertTrue(first.hasNext());
+    assertEquals(first.posts().getLast().getId(), first.nextCursor().id());
+    var last = queries.getPosts(new PostListQuery(first.nextCursor(), 2, null));
+    assertEquals(
+        java.util.List.of("글0"),
+        last.posts().stream().map(org.sopt.post.domain.Post::getTitle).toList());
+    assertFalse(last.hasNext());
+    assertNull(last.nextCursor());
+    assertThrows(UnsupportedOperationException.class, first.posts()::clear);
+  }
+
+  @Test
   void negativeExpectedVersionIsRejectedForNonHttpCaller() {
     commands.createPost("제목", "본문", Category.GENERAL, memberId("작성자"));
     var exception =
@@ -50,7 +69,8 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     commands.createPost("제목", "본문", Category.GENERAL, memberId("작성자"));
     queries.getPost(1);
     queries.getPost(1);
-    assertEquals(0, queries.getPosts(new PostListQuery(0, 100, null)).getFirst().getViewCount());
+    assertEquals(
+        0, queries.getPosts(new PostListQuery(null, 100, null)).posts().getFirst().getViewCount());
   }
 
   @Test
@@ -74,7 +94,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
             () -> commands.createPost(title, "본문", Category.GENERAL, memberId("작성자")));
     assertEquals(PostErrorCode.INVALID_TITLE, exception.getErrorCode());
     assertEquals("제목은 비어 있을 수 없습니다.", exception.getMessage());
-    assertEquals(1, queries.getPosts(new PostListQuery(0, 100, null)).size());
+    assertEquals(1, queries.getPosts(new PostListQuery(null, 100, null)).posts().size());
     assertEquals("기존 제목", queries.getPost(1).getTitle());
   }
 
@@ -88,7 +108,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
             () -> commands.createPost("제목", content, Category.GENERAL, memberId("작성자")));
     assertEquals(PostErrorCode.INVALID_CONTENT, exception.getErrorCode());
     assertEquals("본문은 비어 있을 수 없습니다.", exception.getMessage());
-    assertTrue(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
+    assertTrue(queries.getPosts(new PostListQuery(null, 100, null)).posts().isEmpty());
   }
 
   @Test
@@ -100,7 +120,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     assertEquals(
         org.sopt.member.domain.exception.MemberErrorCode.MEMBER_NOT_FOUND,
         exception.getErrorCode());
-    assertTrue(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
+    assertTrue(queries.getPosts(new PostListQuery(null, 100, null)).posts().isEmpty());
   }
 
   @Test
@@ -110,7 +130,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
             PostException.class, () -> commands.createPost("제목", "본문", null, memberId("작성자")));
     assertEquals(PostErrorCode.INVALID_CATEGORY, exception.getErrorCode());
     assertEquals("카테고리는 필수입니다.", exception.getMessage());
-    assertTrue(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
+    assertTrue(queries.getPosts(new PostListQuery(null, 100, null)).posts().isEmpty());
   }
 
   @ParameterizedTest
@@ -141,12 +161,13 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
   }
 
   @Test
-  void createsAndListsPostsInOrder() {
+  void createsAndListsPostsLatestFirst() {
     commands.createPost("첫 글", "첫 본문", Category.GENERAL, memberId("작성자"));
     commands.createPost("둘째 글", "둘째 본문", Category.GENERAL, memberId("작성자"));
-    assertFalse(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
-    assertEquals(2, queries.getPosts(new PostListQuery(0, 100, null)).size());
-    assertEquals("첫 글", queries.getPosts(new PostListQuery(0, 100, null)).get(0).getTitle());
+    assertFalse(queries.getPosts(new PostListQuery(null, 100, null)).posts().isEmpty());
+    assertEquals(2, queries.getPosts(new PostListQuery(null, 100, null)).posts().size());
+    assertEquals(
+        "둘째 글", queries.getPosts(new PostListQuery(null, 100, null)).posts().get(0).getTitle());
     assertEquals("둘째 본문", queries.getPost(2).getContent());
   }
 
@@ -205,8 +226,10 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     commands.createPost("셋째 글", "셋째 본문", Category.GENERAL, memberId("작성자"));
     commands.deletePost(2);
     assertEquals(
-        java.util.List.of(1L, 3L),
-        queries.getPosts(new PostListQuery(0, 100, null)).stream().map(p -> p.getId()).toList());
+        java.util.List.of(3L, 1L),
+        queries.getPosts(new PostListQuery(null, 100, null)).posts().stream()
+            .map(p -> p.getId())
+            .toList());
     assertEquals("셋째 글", queries.getPost(3).getTitle());
     assertNotFound(() -> queries.getPost(2));
     commands.createPost("새 글", "새 본문", Category.GENERAL, memberId("작성자"));
@@ -224,7 +247,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
       assertNotFound(() -> commands.updatePost(id, "변경", "변경", 0L));
       assertNotFound(() -> commands.deletePost(id));
     }
-    assertEquals(1, queries.getPosts(new PostListQuery(0, 100, null)).size());
+    assertEquals(1, queries.getPosts(new PostListQuery(null, 100, null)).posts().size());
     assertEquals("제목", queries.getPost(1).getTitle());
   }
 
@@ -236,7 +259,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
 
   @Test
   void emptyRepositoryReturnsNoPost() {
-    assertTrue(queries.getPosts(new PostListQuery(0, 100, null)).isEmpty());
+    assertTrue(queries.getPosts(new PostListQuery(null, 100, null)).posts().isEmpty());
     assertNotFound(() -> queries.getPost(1));
     assertNotFound(() -> commands.updatePost(1, "제목", "본문", 0L));
     assertNotFound(() -> commands.deletePost(1));

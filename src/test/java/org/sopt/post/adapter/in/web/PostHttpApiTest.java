@@ -73,7 +73,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
     assertEquals(category, jdbc.queryForObject("SELECT category FROM posts", String.class));
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data[0].category").value(category));
+        .andExpect(jsonPath("$.data.items[0].category").value(category));
   }
 
   @Test
@@ -88,12 +88,12 @@ class PostHttpApiTest extends MemberDatabaseSupport {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.code").value("SUCCESS"));
-    long id = repository.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long id = repository.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.length()").value(1))
-        .andExpect(jsonPath("$.data[0].id").value(id))
-        .andExpect(jsonPath("$.data[0].category").value("QUESTION"));
+        .andExpect(jsonPath("$.data.items.length()").value(1))
+        .andExpect(jsonPath("$.data.items[0].id").value(id))
+        .andExpect(jsonPath("$.data.items[0].category").value("QUESTION"));
     mvc.perform(get("/posts/{id}", id))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.title").value("제목"))
@@ -117,7 +117,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
     mvc.perform(get("/posts/{id}", id))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
-    mvc.perform(get("/posts")).andExpect(jsonPath("$.data").isEmpty());
+    mvc.perform(get("/posts")).andExpect(jsonPath("$.data.items").isEmpty());
   }
 
   @ParameterizedTest
@@ -134,7 +134,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.data").isEmpty());
-    mvc.perform(get("/posts")).andExpect(jsonPath("$.data").isEmpty());
+    mvc.perform(get("/posts")).andExpect(jsonPath("$.data.items").isEmpty());
   }
 
   @Test
@@ -174,7 +174,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
             jsonPath("$.violations[*].code")
                 .value(contains("REQUIRED", "REQUIRED", "REQUIRED", "REQUIRED")))
         .andExpect(jsonPath("$.violations[*].rejectedValue").doesNotExist());
-    mvc.perform(get("/posts")).andExpect(jsonPath("$.data").isEmpty());
+    mvc.perform(get("/posts")).andExpect(jsonPath("$.data.items").isEmpty());
   }
 
   @Test
@@ -187,7 +187,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
         {"title":"기존 제목","content":"기존 본문","category":"GENERAL","memberId":1}
         """))
         .andExpect(status().isCreated());
-    long id = repository.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long id = repository.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
     mvc.perform(
             put("/posts/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)

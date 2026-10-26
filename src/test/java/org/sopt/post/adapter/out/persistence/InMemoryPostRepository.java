@@ -35,11 +35,16 @@ public class InMemoryPostRepository implements LoadPostPort, SavePostPort {
   @Override
   public List<Post> findAll(PostListQuery query) {
     List<Post> result = new ArrayList<>(posts.values());
-    result.sort(Comparator.comparingLong(Post::getId));
+    result.sort(Comparator.comparing(Post::getCreatedAt).thenComparingLong(Post::getId).reversed());
     return result.stream()
         .filter(post -> query.category() == null || post.getCategory() == query.category())
-        .skip((long) query.page() * query.size())
-        .limit(query.size())
+        .filter(
+            post ->
+                query.cursor() == null
+                    || post.getCreatedAt().isBefore(query.cursor().createdAt())
+                    || (post.getCreatedAt().equals(query.cursor().createdAt())
+                        && post.getId() < query.cursor().id()))
+        .limit(query.size() + 1L)
         .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
   }
 

@@ -123,9 +123,9 @@ class PostLengthHttpTest extends MemberDatabaseSupport {
         .andExpect(status().isCreated());
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data[0].title").value(title))
-        .andExpect(jsonPath("$.data[0].content").value(content))
-        .andExpect(jsonPath("$.data[0].author").value("작성자"));
+        .andExpect(jsonPath("$.data.items[0].title").value(title))
+        .andExpect(jsonPath("$.data.items[0].content").value(content))
+        .andExpect(jsonPath("$.data.items[0].author").value("작성자"));
     long id = jdbc.queryForObject("SELECT id FROM posts", Long.class);
     mvc.perform(
             put("/posts/{id}", id)

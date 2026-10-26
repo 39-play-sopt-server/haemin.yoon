@@ -6,7 +6,7 @@
    HTTP 201과 공통 응답의 `data: {"id":1,"name":"홍길동"}`을 반환합니다.
 2. 반환받은 회원 ID를 `POST /posts`의 `memberId`로 전달합니다.
    `{"title":"첫 글","content":"본문","category":"GENERAL","memberId":1}`
-3. `GET /posts`와 `GET /posts/{id}`는 기존 `author` 응답 필드에 참조 회원의 이름을 표시합니다.
+3. `GET /posts`의 `data.items`와 `GET /posts/{id}`의 `data`는 `author` 응답 필드에 참조 회원의 이름을 표시합니다.
 4. `DELETE /members/{id}`는 HTTP 200과 공통 성공 응답(data=null)을 반환합니다.
 
 이름은 공백뿐인 값을 허용하지 않으며 UTF-16 코드 단위로 50자까지 허용합니다.

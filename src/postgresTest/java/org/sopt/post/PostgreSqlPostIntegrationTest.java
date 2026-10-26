@@ -161,7 +161,7 @@ class PostgreSqlPostIntegrationTest {
       assertEquals(18, connection.getMetaData().getDatabaseMajorVersion());
     }
     assertEquals(
-        List.of("1", "2", "3", "4", "5", "6"),
+        List.of("1", "2", "3", "4", "5", "6", "7"),
         jdbc.queryForList(
             "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank",
             String.class));
@@ -421,7 +421,7 @@ class PostgreSqlPostIntegrationTest {
               .schemas(schema)
               .locations("classpath:db/migration")
               .load();
-      assertEquals(3, flyway.migrate().migrationsExecuted);
+      assertEquals(4, flyway.migrate().migrationsExecuted);
       var rows =
           jdbc.queryForList(
               "SELECT title, content, view_count, version, created_at, updated_at FROM "
@@ -475,7 +475,7 @@ class PostgreSqlPostIntegrationTest {
               .load();
       assertThrows(FlywayException.class, flyway::migrate);
       flyway.baseline();
-      assertEquals(5, flyway.migrate().migrationsExecuted);
+      assertEquals(6, flyway.migrate().migrationsExecuted);
       flyway.validate();
       try (var rows =
           statement.executeQuery(
@@ -490,7 +490,7 @@ class PostgreSqlPostIntegrationTest {
         assertFalse(rows.next());
       }
       assertEquals(
-          List.of("BASELINE:1", "SQL:2", "SQL:3", "SQL:4", "SQL:5", "SQL:6"),
+          List.of("BASELINE:1", "SQL:2", "SQL:3", "SQL:4", "SQL:5", "SQL:6", "SQL:7"),
           jdbc.queryForList(
               "SELECT type || ':' || version FROM "
                   + schema
@@ -522,7 +522,7 @@ class PostgreSqlPostIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
-                    "$.data[0].author")
+                    "$.data.items[0].author")
                 .value("홍길동"));
     mvc.perform(get("/posts/{id}", postId))
         .andExpect(status().isOk())
@@ -566,6 +566,7 @@ class PostgreSqlPostIntegrationTest {
               .defaultSchema(schema)
               .schemas(schema)
               .locations("classpath:db/migration")
+              .target("6")
               .load();
       assertEquals(1, flyway.migrate().migrationsExecuted);
       var rows =
@@ -597,6 +598,69 @@ class PostgreSqlPostIntegrationTest {
     } finally {
       jdbc.execute("DROP SCHEMA " + schema + " CASCADE");
     }
+  }
+
+  @Test
+  void scrollsByCreationTimeWithStableTiesInPostgreSql() throws Exception {
+    for (int index = 0; index < 5; index++) {
+      commands.createPost(
+          "page-" + index, "본문", index == 1 ? Category.QUESTION : Category.GENERAL, 1L);
+    }
+    jdbc.update("UPDATE posts SET created_at = TIMESTAMP '2026-01-02 00:00:00.123456'");
+    jdbc.update(
+        "UPDATE posts SET created_at = TIMESTAMP '2026-01-03 00:00:00.123456' WHERE title = 'page-0'");
+    String cursor = null;
+    for (int batch = 0; batch < 3; batch++) {
+      var data = scroll(cursor, null);
+      var items = data.get("items");
+      var expected =
+          List.of(List.of("page-0", "page-4"), List.of("page-3", "page-2"), List.of("page-1"))
+              .get(batch);
+      assertEquals(expected.size(), items.size());
+      for (int item = 0; item < expected.size(); item++) {
+        assertEquals(expected.get(item), items.get(item).get("title").stringValue());
+        assertEquals("작성자", items.get(item).get("author").stringValue());
+      }
+      assertEquals(batch < 2, data.get("hasNext").booleanValue());
+      if (batch < 2) cursor = data.get("nextCursor").stringValue();
+      else assertTrue(data.get("nextCursor").isNull());
+    }
+    var filteredFirst = scroll(null, "GENERAL");
+    var filteredLast = scroll(filteredFirst.get("nextCursor").stringValue(), "GENERAL");
+    assertEquals(2, filteredLast.get("items").size());
+    assertEquals("page-3", filteredLast.get("items").get(0).get("title").stringValue());
+    assertEquals("page-2", filteredLast.get("items").get(1).get("title").stringValue());
+    assertFalse(filteredLast.get("hasNext").booleanValue());
+    assertTrue(filteredLast.get("nextCursor").isNull());
+    assertEquals(0L, jdbc.queryForObject("SELECT SUM(view_count) FROM posts", Long.class));
+  }
+
+  @Test
+  void scrollingSurvivesInsertionAndDeletionOfTheBoundaryInPostgreSql() throws Exception {
+    for (int index = 0; index < 5; index++) {
+      commands.createPost("scroll-" + index, "본문", Category.GENERAL, 1L);
+    }
+    jdbc.update("UPDATE posts SET created_at = TIMESTAMP '2026-01-02 00:00:00.123456'");
+    var first = scroll(null, null);
+    assertEquals("scroll-4", first.get("items").get(0).get("title").stringValue());
+    assertEquals("scroll-3", first.get("items").get(1).get("title").stringValue());
+    jdbc.update("DELETE FROM posts WHERE title IN ('scroll-4', 'scroll-3')");
+    commands.createPost("새 글", "본문", Category.GENERAL, 1L);
+    var second = scroll(first.get("nextCursor").stringValue(), null);
+    assertEquals("scroll-2", second.get("items").get(0).get("title").stringValue());
+    assertEquals("scroll-1", second.get("items").get(1).get("title").stringValue());
+    var last = scroll(second.get("nextCursor").stringValue(), null);
+    assertEquals(1, last.get("items").size());
+    assertEquals("scroll-0", last.get("items").get(0).get("title").stringValue());
+    assertFalse(last.get("hasNext").booleanValue());
+  }
+
+  private tools.jackson.databind.JsonNode scroll(String cursor, String category) throws Exception {
+    var request = get("/posts").param("size", "2");
+    if (cursor != null) request.param("cursor", cursor);
+    if (category != null) request.param("category", category);
+    var response = mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse();
+    return json.readTree(response.getContentAsString()).get("data");
   }
 
   private <T> List<T> concurrently(int count, ConcurrentAction<T> action) throws Exception {

@@ -23,12 +23,24 @@ class ConcurrentPostStorageTest {
           }
         });
     var posts = new ArrayList<Post>();
-    for (int page = 0; page < 80; page++) {
-      posts.addAll(repository.findAll(new PostListQuery(page, 100, null)));
-    }
+    var queries = new org.sopt.post.application.service.query.PostQueryService(repository);
+    org.sopt.post.application.port.in.query.PostCursor cursor = null;
+    do {
+      var result = queries.getPosts(new PostListQuery(cursor, 100, null));
+      posts.addAll(result.posts());
+      cursor = result.nextCursor();
+    } while (cursor != null);
     assertEquals(8000, posts.size());
-    for (int i = 0; i < posts.size(); i++) {
-      assertEquals(i + 1L, posts.get(i).getId());
+    assertEquals(
+        java.util.stream.LongStream.rangeClosed(1, 8000).boxed().toList(),
+        posts.stream().map(Post::getId).sorted().toList());
+    for (int i = 1; i < posts.size(); i++) {
+      Post previous = posts.get(i - 1);
+      Post current = posts.get(i);
+      assertFalse(previous.getCreatedAt().isBefore(current.getCreatedAt()));
+      if (previous.getCreatedAt().equals(current.getCreatedAt())) {
+        assertTrue(previous.getId() > current.getId());
+      }
     }
   }
 

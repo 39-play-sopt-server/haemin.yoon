@@ -220,41 +220,73 @@ ID는 PostgreSQL identity 컬럼이 자동 생성해 서버 재시작이나 다�
 상세 조회는 조회수 UPDATE의 반영 행 수가 0이면 POST_NOT_FOUND를 반환합니다. 수정·삭제는 대상 조회로 존재 여부를 확인합니다.
 
 스키마는 Flyway의 버전별 SQL로 관리하고 운영·테스트의 JPA는 ddl-auto=validate로 매핑을 검증합니다.
-V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스, V4는 편집 버전, V5는 수정일, V6은 회원과 게시글 작성자 연결을 담당합니다.
+V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스, V4는 편집 버전, V5는 수정일, V6은 회원과 게시글 작성자 연결, V7은 최신순 목록 인덱스를 담당합니다.
 비밀번호는 환경변수로 설정합니다.
 메모리 저장소는 src/test 아래에서 단위 테스트 대역으로만 사용합니다.
 대역은 같은 엔티티 참조를 반환해 변경 결과를 관찰하며, JPA 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트로 검증합니다.
 엔티티의 ID·필드 복원은 JPA에 맡기며, 수동 ID 생성자나 저장소 복원용 팩터리는 제공하지 않습니다.
 
-## 목록 페이지네이션과 카테고리 조회
+## 무한 스크롤과 카테고리 조회
 
-`GET /posts?page=0&size=20&category=QUESTION`으로 한 페이지를 조회합니다.
-page는 0부터 시작하고 기본값은 0, size의 기본값은 20이며 1~100을 허용합니다.
-숫자가 아닌 값과 int 범위 밖의 숫자, 알 수 없는 category는 HTTP 400과 INVALID_REQUEST입니다.
-음수 page·허용 범위 밖 size·int 범위를 넘는 `page * size`는 INVALID_PAGINATION입니다.
-JPA의 offset이 int이므로 곱셈은 long으로 검사하여 오버플로와 저장소 예외를 방지합니다.
-생략하거나 빈 값으로 보낸 page·size는 기본값을 사용하고, category는 전체 분류를 조회합니다.
+첫 요청은 `GET /posts?size=20&category=QUESTION`으로 보내고 이후 응답의 nextCursor를
+`GET /posts?size=20&category=QUESTION&cursor=...`에 그대로 전달합니다.
+size는 기본 20, 허용 범위는 1~100이며 category 생략·빈 값은 전체 분류입니다.
+`page` 기반 이동은 제공하지 않습니다. 기존 배열 응답을 사용하던 클라이언트는 `data.items`를 읽도록 변경해야 합니다.
 
-웹 어댑터는 외부 PostCategory를 도메인 Category로 변환하고,
-`PostListQuery`가 HTTP 외 호출에서도 조회 범위를 검증합니다.
-입력·출력 포트는 이 조회 조건을 공유하며 Spring Data 타입에 의존하지 않습니다.
-`PostPersistenceAdapter`에서만 PageRequest로 변환합니다.
-카테고리 조건 유무에 따라 저장소 메서드를 선택하고,
-DB에서 WHERE → ORDER BY id ASC → OFFSET/LIMIT 순서로 처리합니다.
-전체 데이터를 메모리에 올려 자르지 않으며 ID의 고유한 순서로 페이지 경계를 정합니다.
-전체 조회는 PK, 카테고리 조회는 V3의 `(category, id)` 복합 인덱스를 활용할 수 있습니다.
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "게시글 목록을 조회했습니다.",
+  "data": {
+    "items": [],
+    "hasNext": false,
+    "nextCursor": null
+  },
+  "violations": []
+}
+```
 
-기존 `data` 배열 계약을 유지하고 총 개수·총 페이지 수는 제공하지 않습니다.
-요청한 페이지에 결과가 없으면 HTTP 200과 빈 배열을 반환합니다.
-List를 반환하는 저장소 메서드를 사용하므로 총 개수를 위한 COUNT 쿼리는 실행하지 않습니다.
-페이지네이션·필터 목록 조회 모두 조회수를 변경하지 않습니다.
-`PostListingTest`는 기본값·경계·카테고리별 필터 적용 순서·빈 결과·잘못된 입력을 실제 H2 DB와 HTTP 계층에서 검증합니다.
+조회 결과를 `items` 뒤에 이어 붙이고 hasNext가 true일 때만 nextCursor로 다음 요청을 보냅니다.
+마지막 목록이나 빈 결과는 hasNext=false, nextCursor=null입니다. 마지막 커서가 null이라고
+첫 요청을 반복해서는 안 됩니다. 총 개수·총 페이지 수는 제공하지 않습니다.
+카테고리를 바꾸면 items와 cursor를 초기화해 첫 요청부터 다시 시작합니다.
 
-앞으로 작성자 필터를 추가한다면 PostListQuery와 게시글 저장소의 검색 조건을 확장합니다.
-조건 조합이 많아져 메서드가 반복되면 그때 Specification이나 전용 검색 저장소를 검토합니다.
-회원 목록은 회원 도메인에 조회 조건을 두고, 실제로 공유되는 계약이 생길 때 공통화를 검토합니다.
-현재 offset 방식은 깊은 페이지의 비용과 페이지 사이 삭제에 따른 결과 이동이 있습니다.
-대량 데이터에서 이 문제가 중요해지면 ID 기반 커서 페이지네이션을 별도 계약으로 도입합니다.
+`PostListQuery`는 크기와 커서의 카테고리 일치를 검증합니다. `PostCursor`는 마지막으로 반환한
+글의 생성일·ID·카테고리를 담으며 회원 ID나 게시글 엔티티를 재조회하지 않습니다.
+입력·출력 포트는 Spring Data나 웹 인코딩에 의존하지 않습니다.
+`PostCursorCodec`이 웹 어댑터에서 버전·생성일·ID·카테고리를 URL 안전 Base64 문자열로 변환합니다.
+카테고리는 PostCategory의 외부 값과 명시적 도메인 매핑을 사용하므로 도메인 Enum 이름을 토큰에 직접 기록하지 않습니다.
+클라이언트는 토큰을 해석하거나 조립하지 않고 응답 값을 그대로 전달합니다.
+이 토큰은 조회 경계를 표현하며 인증·인가 수단은 아닙니다.
+형식·버전·길이가 잘못된 커서, 유효하지 않은 시각·ID, 요청과 카테고리가 다른 커서는
+HTTP 400 INVALID_CURSOR입니다. 잘못된 size는 INVALID_PAGINATION 또는 숫자 바인딩의 INVALID_REQUEST입니다.
+
+저장소는 카테고리를 적용하고 아래 경계보다 오래된 글을 생성일·ID 내림차순으로 조회합니다.
+
+```sql
+(created_at, id) < (:createdAt, :id)
+```
+
+생성일·ID를 튜플로 비교해 복합 인덱스의 검색 조건에 경계를 적용합니다. OR 필터로 이전 구간을 재탐색하지 않도록 합니다.
+`PostPersistenceAdapter`가 항상 offset=0으로 최대 size+1개를 읽습니다.
+`PostQueryService`가 추가 한 건으로 hasNext를 판단하고 실제 반환할 size개 중 마지막 글로
+nextCursor를 만듭니다. 확인용 한 건을 커서로 쓰지 않으므로 다음 글을 누락하지 않습니다.
+조회 결과는 `PostListResult`, 웹 표현은 `PostListResponse`가 담당합니다.
+회원은 EntityGraph 또는 fetch join으로 함께 읽어 작성자 이름의 N+1 조회를 방지합니다.
+COUNT 쿼리는 실행하지 않으며 목록 조회는 조회수를 변경하지 않습니다.
+V7의 `(created_at DESC, id DESC)`, `(category, created_at DESC, id DESC)` 인덱스를 유지합니다.
+
+커서 경계는 값으로 저장하므로 경계 글이 삭제돼도 다음 목록을 조회할 수 있습니다.
+이전 목록의 삭제나 더 최신인 새 글 추가로 offset이 이동해 중복·누락되는 문제를 피합니다.
+이미 지나간 경계보다 최신인 새 글은 처음부터 새로고침할 때 표시합니다.
+조회 사이에 삭제된 글은 다음 결과에서 제외됩니다. 목록 전체의 시점 스냅샷을 보장하지 않으며,
+생성 시각을 소급 지정해 경계보다 오래된 글을 추가하면 이후 목록에 포함될 수 있습니다.
+본문 편집은 createdAt을 변경하지 않으므로 정렬에 영향을 주지 않습니다.
+
+앞으로 작성자 필터를 추가한다면 PostListQuery·PostCursor와 저장소 조건을 함께 확장하고
+토큰 버전을 관리해야 합니다. 조건 조합이 많아지면 전용 검색 저장소를 검토합니다.
+현재는 게시글 전용 조회 계약만 두며 다른 도메인에 범용 커서 프레임워크를 미리 도입하지 않습니다.
 
 ## 조회수
 
@@ -372,8 +404,8 @@ curl -i http://localhost:8080/posts \
   -d '{"title":"첫 게시글","content":"본문","category":"GENERAL","memberId":1}'
 ```
 
-생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data 배열에서 생성된 ID를 확인합니다. 기본적으로 첫 20건을 반환합니다.
-목록은 ID 오름차순이며, 카테고리는 GENERAL·QUESTION·INFORMATION 중 하나입니다.
+생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data.items 배열에서 생성된 ID를 확인합니다. 기본적으로 첫 20건을 반환합니다.
+목록은 생성일 내림차순, 동일 생성일은 ID 내림차순이며, 카테고리는 GENERAL·QUESTION·INFORMATION 중 하나입니다.
 `GET /posts/{id}`로 단건 조회하고, `PUT /posts/{id}`에는 아래 JSON 본문을 보냅니다.
 version은 예시의 0을 고정해서 쓰지 않고 실제 조회 응답에서 읽은 값을 전달합니다.
 

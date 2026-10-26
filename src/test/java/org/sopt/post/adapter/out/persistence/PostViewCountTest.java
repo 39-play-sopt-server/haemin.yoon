@@ -57,7 +57,7 @@ class PostViewCountTest extends MemberDatabaseSupport {
     for (int i = 0; i < 2; i++) {
       mvc.perform(get("/posts"))
           .andExpect(status().isOk())
-          .andExpect(jsonPath("$.data[0].viewCount").value(0));
+          .andExpect(jsonPath("$.data.items[0].viewCount").value(0));
     }
   }
 
@@ -94,10 +94,10 @@ class PostViewCountTest extends MemberDatabaseSupport {
     statistics.clear();
 
     var posts =
-        queries.getPosts(new org.sopt.post.application.port.in.query.PostListQuery(0, 20, null));
+        queries.getPosts(new org.sopt.post.application.port.in.query.PostListQuery(null, 20, null));
     assertEquals(
-        java.util.List.of("첫 회원", "둘째 회원"),
-        posts.stream().map(post -> post.getMember().getName()).toList());
+        java.util.List.of("둘째 회원", "첫 회원"),
+        posts.posts().stream().map(post -> post.getMember().getName()).toList());
     assertEquals(1, statistics.getPrepareStatementCount());
   }
 

@@ -46,8 +46,9 @@ class PostFacadeTransactionTest extends MemberDatabaseSupport {
     PostQueryUseCase failingQuery(JdbcTemplate jdbc) {
       return new PostQueryUseCase() {
         @Override
-        public List<Post> getPosts(PostListQuery query) {
-          return List.of();
+        public org.sopt.post.application.port.in.query.PostListResult getPosts(
+            PostListQuery query) {
+          return new org.sopt.post.application.port.in.query.PostListResult(List.of(), false, null);
         }
 
         @Override

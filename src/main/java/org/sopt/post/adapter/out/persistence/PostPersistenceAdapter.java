@@ -27,10 +27,17 @@ public class PostPersistenceAdapter implements LoadPostPort, SavePostPort {
 
   @Override
   public List<Post> findAll(PostListQuery query) {
-    var pageable = PageRequest.of(query.page(), query.size());
+    var pageable = PageRequest.of(0, query.size() + 1);
+    if (query.cursor() != null) {
+      var cursor = query.cursor();
+      return query.category() == null
+          ? postRepository.findAfter(cursor.createdAt(), cursor.id(), pageable)
+          : postRepository.findAfterByCategory(
+              query.category(), cursor.createdAt(), cursor.id(), pageable);
+    }
     return query.category() == null
-        ? postRepository.findAllByOrderByIdAsc(pageable)
-        : postRepository.findAllByCategoryOrderByIdAsc(query.category(), pageable);
+        ? postRepository.findAllByOrderByCreatedAtDescIdDesc(pageable)
+        : postRepository.findAllByCategoryOrderByCreatedAtDescIdDesc(query.category(), pageable);
   }
 
   @Override

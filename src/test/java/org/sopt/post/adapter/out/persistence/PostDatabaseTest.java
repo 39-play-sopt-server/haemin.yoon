@@ -36,13 +36,13 @@ class PostDatabaseTest extends MemberDatabaseSupport {
             Integer.class));
     writer.save(new Post("마이그레이션 검증", "본문", Category.GENERAL, member("작성자")));
     assertEquals(
-        "마이그레이션 검증", reader.findAll(new PostListQuery(0, 100, null)).getFirst().getTitle());
+        "마이그레이션 검증", reader.findAll(new PostListQuery(null, 100, null)).getFirst().getTitle());
   }
 
   @Test
   void managedPostUpdateIsCommittedWithoutExplicitSaveOrUpdateQuery() {
     writer.save(new Post("기존 제목", "기존 본문", Category.QUESTION, member("작성자")));
-    long id = reader.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long id = reader.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
     var transaction =
         new org.springframework.transaction.support.TransactionTemplate(transactionManager);
     transaction.executeWithoutResult(
@@ -60,7 +60,7 @@ class PostDatabaseTest extends MemberDatabaseSupport {
   @Test
   void commandUpdateCommitsBothFieldsAndPreservesMetadata() {
     commands.createPost("기존 제목", "기존 본문", Category.INFORMATION, memberId("작성자"));
-    var original = reader.findAll(new PostListQuery(0, 100, null)).getFirst();
+    var original = reader.findAll(new PostListQuery(null, 100, null)).getFirst();
     commands.updatePost(original.getId(), "수정 제목", "수정 본문", 0L);
     var updated = reader.findById(original.getId()).orElseThrow();
     assertEquals("수정 제목", updated.getTitle());
@@ -73,7 +73,7 @@ class PostDatabaseTest extends MemberDatabaseSupport {
   @Test
   void failedDomainValidationLeavesDatabaseUnchanged() {
     commands.createPost("기존 제목", "기존 본문", Category.GENERAL, memberId("작성자"));
-    long id = reader.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long id = reader.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
     assertThrows(
         org.sopt.post.domain.exception.PostException.class,
         () -> commands.updatePost(id, "변경되면 안 되는 제목", " ", 0L));
@@ -86,7 +86,7 @@ class PostDatabaseTest extends MemberDatabaseSupport {
   @Test
   void flushedEntityChangesRollBackWithTheBusinessTransaction() {
     commands.createPost("기존 제목", "기존 본문", Category.GENERAL, memberId("작성자"));
-    long id = reader.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long id = reader.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
     var transaction =
         new org.springframework.transaction.support.TransactionTemplate(transactionManager);
     assertThrows(
@@ -133,7 +133,7 @@ class PostDatabaseTest extends MemberDatabaseSupport {
     Post pending = new Post("자동 ID", "본문", Category.GENERAL, member("작성자"));
     assertNull(pending.getId());
     writer.save(pending);
-    Post saved = reader.findAll(new PostListQuery(0, 100, null)).getFirst();
+    Post saved = reader.findAll(new PostListQuery(null, 100, null)).getFirst();
     assertTrue(saved.getId() > 0, "ID는 저장 시 DB에서 생성되어야 합니다.");
     assertEquals(
         "YES",
@@ -153,7 +153,7 @@ class PostDatabaseTest extends MemberDatabaseSupport {
     assertFalse(pending.getCreatedAt().isBefore(beforeCreation));
     assertFalse(pending.getCreatedAt().isAfter(LocalDateTime.now()));
     writer.save(pending);
-    Post loaded = reader.findAll(new PostListQuery(0, 100, null)).getFirst();
+    Post loaded = reader.findAll(new PostListQuery(null, 100, null)).getFirst();
     assertEquals(
         "본문",
         jdbc.queryForObject(
@@ -192,7 +192,7 @@ class PostDatabaseTest extends MemberDatabaseSupport {
   @Test
   void updatesOnlyTitleAndContentAndDeletesExistingRows() {
     writer.save(new Post("제목", "본문", Category.INFORMATION, member("작성자")));
-    Post post = reader.findAll(new PostListQuery(0, 100, null)).getFirst();
+    Post post = reader.findAll(new PostListQuery(null, 100, null)).getFirst();
     LocalDateTime createdAt = post.getCreatedAt();
     commands.updatePost(post.getId(), "수정 제목", "수정 본문", 0L);
     Post updated = reader.findById(post.getId()).orElseThrow();
@@ -214,7 +214,7 @@ class PostDatabaseTest extends MemberDatabaseSupport {
   @Test
   void saveWithExistingIdDoesNotOverwriteExistingPost() {
     writer.save(new Post("원본", "원본 본문", Category.GENERAL, member("작성자")));
-    long id = reader.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long id = reader.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
     var duplicate = new Post("중복", "중복 본문", Category.QUESTION, member("다른 작성자"));
     org.springframework.test.util.ReflectionTestUtils.setField(duplicate, "id", id);
     assertThrows(IllegalArgumentException.class, () -> writer.save(duplicate));
@@ -222,17 +222,17 @@ class PostDatabaseTest extends MemberDatabaseSupport {
   }
 
   @Test
-  void listsInIdOrderAndDoesNotReuseDeletedIds() {
+  void listsLatestFirstAndDoesNotReuseDeletedIds() {
     writer.save(new Post("첫째", "본문", Category.GENERAL, member("작성자")));
-    long first = reader.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long first = reader.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
     writer.save(new Post("둘째", "본문", Category.GENERAL, member("작성자")));
-    long second = reader.findAll(new PostListQuery(0, 100, null)).getLast().getId();
+    long second = reader.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
     assertTrue(second > first);
     assertEquals(
-        java.util.List.of("첫째", "둘째"),
-        reader.findAll(new PostListQuery(0, 100, null)).stream().map(Post::getTitle).toList());
+        java.util.List.of("둘째", "첫째"),
+        reader.findAll(new PostListQuery(null, 100, null)).stream().map(Post::getTitle).toList());
     commands.deletePost(second);
     writer.save(new Post("셋째", "본문", Category.GENERAL, member("작성자")));
-    assertTrue(reader.findAll(new PostListQuery(0, 100, null)).getLast().getId() > second);
+    assertTrue(reader.findAll(new PostListQuery(null, 100, null)).getFirst().getId() > second);
   }
 }

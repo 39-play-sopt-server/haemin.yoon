@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +18,6 @@ import org.sopt.post.application.facade.PostFacade;
 import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
-import org.sopt.post.domain.Post;
 import org.sopt.support.MemberUnitSupport;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -68,7 +66,7 @@ class PostCommandQueryControllerTest extends MemberUnitSupport {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value(code))
         .andExpect(jsonPath("$.data").isEmpty());
-    assertTrue(queries.getPosts(0, 100, null).data().isEmpty());
+    assertTrue(queries.getPosts(null, 100, null).data().items().isEmpty());
   }
 
   @Test
@@ -97,7 +95,7 @@ class PostCommandQueryControllerTest extends MemberUnitSupport {
   void responseSnapshotsRemainUnchangedAfterHttpMutations() throws Exception {
     createPost();
     var original = queries.getPost(1).getBody().data();
-    var list = queries.getPosts(0, 100, null).data();
+    var list = queries.getPosts(null, 100, null).data().items();
     assertThrows(UnsupportedOperationException.class, list::clear);
     mvc.perform(
             put("/posts/1")
@@ -118,7 +116,8 @@ class PostCommandQueryControllerTest extends MemberUnitSupport {
     var service =
         new PostQueryService(failingRepository) {
           @Override
-          public List<Post> getPosts(PostListQuery query) {
+          public org.sopt.post.application.port.in.query.PostListResult getPosts(
+              PostListQuery query) {
             throw new IllegalStateException("internal secret details");
           }
         };

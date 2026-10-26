@@ -1,7 +1,8 @@
 package org.sopt.post.application.service.query;
 
-import java.util.List;
+import org.sopt.post.application.port.in.query.PostCursor;
 import org.sopt.post.application.port.in.query.PostListQuery;
+import org.sopt.post.application.port.in.query.PostListResult;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.domain.Post;
@@ -21,8 +22,16 @@ public class PostQueryService implements PostQueryUseCase {
   }
 
   @Override
-  public List<Post> getPosts(PostListQuery query) {
-    return loadPostPort.findAll(query);
+  public PostListResult getPosts(PostListQuery query) {
+    var candidates = loadPostPort.findAll(query);
+    boolean hasNext = candidates.size() > query.size();
+    var posts = candidates.stream().limit(query.size()).toList();
+    PostCursor nextCursor = null;
+    if (hasNext) {
+      Post last = posts.getLast();
+      nextCursor = new PostCursor(last.getCreatedAt(), last.getId(), query.category());
+    }
+    return new PostListResult(posts, hasNext, nextCursor);
   }
 
   @Override

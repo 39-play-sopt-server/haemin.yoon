@@ -65,7 +65,7 @@ class ApiDocumentationTest {
                 .andExpect(status().isOk())
                 .andExpect(
                     jsonPath("$.paths['/posts'].get.parameters[*].name")
-                        .value(containsInAnyOrder("page", "size", "category")))
+                        .value(containsInAnyOrder("cursor", "size", "category")))
                 .andReturn()
                 .getResponse()
                 .getContentAsString());
@@ -152,8 +152,8 @@ class ApiDocumentationTest {
         .andExpect(
             jsonPath("$.components.schemas.ErrorResponse.properties.data.type").value("null"))
         .andExpect(
-            jsonPath("$.components.schemas.BaseResponseListPostResponse.properties.data.items.$ref")
-                .value("#/components/schemas/PostResponse"))
+            jsonPath("$.components.schemas.BaseResponsePostListResponse.properties.data.$ref")
+                .value("#/components/schemas/PostListResponse"))
         .andExpect(
             jsonPath("$.components.schemas.BaseResponsePostResponse.properties.data.$ref")
                 .value("#/components/schemas/PostResponse"));

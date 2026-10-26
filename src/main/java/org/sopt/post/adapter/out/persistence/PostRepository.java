@@ -1,5 +1,6 @@
 package org.sopt.post.adapter.out.persistence;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.sopt.post.domain.Category;
@@ -13,10 +14,32 @@ import org.springframework.data.repository.query.Param;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
   @EntityGraph(attributePaths = "member")
-  List<Post> findAllByOrderByIdAsc(Pageable pageable);
+  List<Post> findAllByOrderByCreatedAtDescIdDesc(Pageable pageable);
 
   @EntityGraph(attributePaths = "member")
-  List<Post> findAllByCategoryOrderByIdAsc(Category category, Pageable pageable);
+  List<Post> findAllByCategoryOrderByCreatedAtDescIdDesc(Category category, Pageable pageable);
+
+  @Query(
+      """
+      SELECT p FROM Post p JOIN FETCH p.member
+      WHERE (p.createdAt, p.id) < (:createdAt, :id)
+      ORDER BY p.createdAt DESC, p.id DESC
+      """)
+  List<Post> findAfter(
+      @Param("createdAt") LocalDateTime createdAt, @Param("id") long id, Pageable pageable);
+
+  @Query(
+      """
+      SELECT p FROM Post p JOIN FETCH p.member
+      WHERE p.category = :category
+        AND (p.createdAt, p.id) < (:createdAt, :id)
+      ORDER BY p.createdAt DESC, p.id DESC
+      """)
+  List<Post> findAfterByCategory(
+      @Param("category") Category category,
+      @Param("createdAt") LocalDateTime createdAt,
+      @Param("id") long id,
+      Pageable pageable);
 
   @Override
   @Query("SELECT p FROM Post p JOIN FETCH p.member WHERE p.id = :id")

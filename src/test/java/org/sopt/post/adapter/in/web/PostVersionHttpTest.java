@@ -37,7 +37,7 @@ class PostVersionHttpTest extends MemberDatabaseSupport {
 
   @Test
   void detailAndListExposeVersionWithoutViewIncrementsChangingIt() throws Exception {
-    mvc.perform(get("/posts")).andExpect(jsonPath("$.data[0].version").value(0));
+    mvc.perform(get("/posts")).andExpect(jsonPath("$.data.items[0].version").value(0));
     for (int count = 1; count <= 2; count++) {
       mvc.perform(get("/posts/{id}", id))
           .andExpect(status().isOk())

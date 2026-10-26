@@ -21,7 +21,7 @@ class FlywayMigrationTest {
     String url = existingDatabase();
     Flyway flyway = flyway(url);
     flyway.baseline();
-    assertEquals(5, flyway.migrate().migrationsExecuted);
+    assertEquals(6, flyway.migrate().migrationsExecuted);
     flyway.validate();
     assertOriginalPost(url);
     try (var connection = DriverManager.getConnection(url, "sa", "");
@@ -46,6 +46,9 @@ class FlywayMigrationTest {
       assertEquals("SQL", rows.getString(2));
       assertTrue(rows.next());
       assertEquals("6", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("7", rows.getString(1));
       assertEquals("SQL", rows.getString(2));
       assertFalse(rows.next());
     }

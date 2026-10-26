@@ -52,7 +52,7 @@ class MemberHttpApiTest extends MemberDatabaseSupport {
     assertEquals(id, jdbc.queryForObject("SELECT member_id FROM posts", Long.class));
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data[0].author").value("홍길동"));
+        .andExpect(jsonPath("$.data.items[0].author").value("홍길동"));
     mvc.perform(get("/posts/{id}", postId))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.author").value("홍길동"));
@@ -63,7 +63,7 @@ class MemberHttpApiTest extends MemberDatabaseSupport {
     assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM posts", Integer.class));
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data[0].author").value("홍길동"));
+        .andExpect(jsonPath("$.data.items[0].author").value("홍길동"));
     mvc.perform(get("/posts/{id}", postId))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.author").value("홍길동"));
