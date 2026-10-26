@@ -2,18 +2,14 @@ package org.sopt.post.application.port.out;
 
 import org.sopt.post.domain.Post;
 
-/**
- * 게시글의 저장·교체·삭제를 담당하는 변경 전용 출력 포트입니다.
- * 조회 포트와 별도 계약으로 두되, 구현 어댑터와 실제 저장소는 함께 사용할 수 있습니다.
- * 서비스를 구체적인 HashMap 관리 방식에서 분리합니다.
- */
+/** 게시글 생성·삭제·조회수 증가를 위한 쓰기 출력 포트입니다. 본문 수정은 서비스 트랜잭션의 변경 감지로 반영합니다. */
 public interface SavePostPort {
-  /** 새 ID의 게시글을 저장하며, 중복 ID는 기존 글을 덮어쓰지 않고 거부합니다. */
+  /** ID가 없는 새 게시글을 저장하며, ID는 DB에서 생성합니다. 이미 ID가 있는 게시글은 거부합니다. */
   void save(Post post);
 
-  /** 같은 ID의 게시글을 교체하고 true를 반환하며, 대상이 없으면 저장하지 않고 false를 반환합니다. */
-  boolean update(Post post);
+  /** 서비스가 조회한 게시글을 삭제합니다. 대상 존재 여부는 서비스에서 검증합니다. */
+  void delete(Post post);
 
-  /** 해당 ID의 게시글을 삭제하고 true를 반환하며, 대상이 없으면 false를 반환합니다. */
-  boolean deleteById(long id);
+  /** 해당 게시글의 조회수를 원자적으로 1 증가시키며, 게시글이 없으면 false를 반환합니다. */
+  boolean incrementViewCount(long id);
 }

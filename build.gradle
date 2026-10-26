@@ -1,25 +1,122 @@
 plugins {
     id 'java'
+    id 'org.springframework.boot' version '4.0.8'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.diffplug.spotless' version '8.5.1'
 }
 
 group = 'org.sopt'
 version = '1.0-SNAPSHOT'
 
-tasks.withType(JavaCompile).configureEach {
-    options.release = 21
-    options.encoding = 'UTF-8'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 repositories {
     mavenCentral()
 }
 
+configurations {
+    flywayCli
+}
+
 dependencies {
+    // Lombok: 반복 코드 생성
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // 웹 API 및 요청 검증
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // API 문서: OpenAPI 및 Scalar
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-scalar:3.1.1'
+    implementation 'com.scalar.maven:scalar-webmvc:0.6.74'
+    implementation 'com.scalar.maven:scalar-core:0.6.74'
+
+    // 데이터 영속성: JPA 및 PostgreSQL
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // 스키마 마이그레이션: 애플리케이션 실행용 Flyway
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
+    // 스키마 마이그레이션: 수동 baseline 작업용 Flyway CLI
+    flywayCli 'org.flywaydb:flyway-commandline'
+    flywayCli 'org.flywaydb:flyway-database-postgresql'
+    flywayCli 'org.postgresql:postgresql'
+
+    // 테스트: Spring MVC 및 JUnit
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation platform('org.junit:junit-bom:6.0.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // 테스트 전용 데이터베이스
+    testRuntimeOnly 'com.h2database:h2'
 }
 
 test {
     useJUnitPlatform()
+}
+
+// Docker 기반 PostgreSQL 검증은 일반 H2 테스트와 별도 실행합니다.
+testing {
+    suites {
+        postgresTest(JvmTestSuite) {
+            useJUnitJupiter('6.0.0')
+            dependencies {
+                implementation project()
+                implementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+                implementation 'org.testcontainers:testcontainers-postgresql'
+                implementation 'org.testcontainers:testcontainers-junit-jupiter'
+            }
+            targets {
+                all {
+                    testTask.configure {
+                        shouldRunAfter tasks.named('test')
+                        // 매 실행마다 새로운 PostgreSQL에서 검증합니다.
+                        outputs.upToDateWhen { false }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 별도 테스트 소스에서도 애플리케이션의 JPA·Flyway API를 사용합니다.
+configurations.named('postgresTestImplementation') {
+    extendsFrom configurations.implementation
+}
+
+spotless {
+    java {
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/postgresTest/java/**/*.java'
+        googleJavaFormat('1.28.0')
+        removeUnusedImports()
+    }
+}
+
+tasks.named('bootRun') {
+    dependsOn tasks.named('spotlessCheck')
+}
+
+tasks.register('flywayBaseline', JavaExec) {
+    group = 'database'
+    description = 'Register an existing public schema as version 1 without running migrations.'
+    classpath = configurations.flywayCli
+    mainClass = 'org.flywaydb.commandline.Main'
+    args 'baseline', '-baselineVersion=1', '-schemas=public'
+    doFirst {
+        def dbUrl = System.getenv('DB_URL')
+        if (!dbUrl) {
+            throw new GradleException('Set DB_URL explicitly after checking the target schema and backup. See docs/flyway.md.')
+        }
+        environment 'FLYWAY_URL', dbUrl
+        environment 'FLYWAY_USER', System.getenv('DB_USERNAME') ?: System.getProperty('user.name')
+        environment 'FLYWAY_PASSWORD', System.getenv('DB_PASSWORD') ?: ''
+    }
 }
