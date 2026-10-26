@@ -31,12 +31,12 @@ public class PostOpenApiConfig {
             .addResponses(
                 "PostCreateBadRequest",
                 requestErrors(
-                    "제목·본문·작성자는 공백일 수 없고 카테고리는 필수입니다(VALIDATION_FAILED). "
+                    "제목·본문은 공백일 수 없고 카테고리와 양수 memberId는 필수입니다(VALIDATION_FAILED). "
                         + "요청 스키마의 maxLength 초과 시에도 VALIDATION_FAILED를 반환하며 필드 오류 코드는 INVALID_LENGTH입니다. "
-                        + "제목·본문·작성자에 NUL(U+0000) 문자가 포함되면 NUL_CHARACTER_NOT_ALLOWED를 반환합니다. "
+                        + "제목·본문에 NUL(U+0000) 문자가 포함되면 NUL_CHARACTER_NOT_ALLOWED를 반환합니다. "
                         + "본문 누락, 잘못된 JSON 또는 허용되지 않은 카테고리는 INVALID_REQUEST를 반환합니다. "
                         + "카테고리는 GENERAL·QUESTION·INFORMATION 문자열만 허용하며 숫자와 숫자 문자열은 거부합니다.",
-                    List.of("title", "content", "category", "author")))
+                    List.of("title", "content", "category", "memberId")))
             .addResponses(
                 "PostUpdateBadRequest",
                 requestErrors(

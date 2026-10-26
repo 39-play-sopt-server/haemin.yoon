@@ -2,6 +2,7 @@ package org.sopt.post.application.service.command;
 
 import org.sopt.global.exception.BaseException;
 import org.sopt.global.exception.GlobalErrorCode;
+import org.sopt.member.application.port.in.query.MemberQueryUseCase;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.application.port.out.SavePostPort;
@@ -22,15 +23,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class PostCommandService implements PostCommandUseCase {
   private final LoadPostPort loadPostPort;
   private final SavePostPort savePostPort;
+  private final MemberQueryUseCase members;
 
-  public PostCommandService(LoadPostPort loadPostPort, SavePostPort savePostPort) {
+  public PostCommandService(
+      LoadPostPort loadPostPort, SavePostPort savePostPort, MemberQueryUseCase members) {
     this.loadPostPort = loadPostPort;
     this.savePostPort = savePostPort;
+    this.members = members;
   }
 
   @Override
-  public void createPost(String title, String content, Category category, String author) {
-    savePostPort.save(new Post(title, content, category, author));
+  public void createPost(String title, String content, Category category, long memberId) {
+    savePostPort.save(new Post(title, content, category, members.getActiveMember(memberId)));
   }
 
   @Override

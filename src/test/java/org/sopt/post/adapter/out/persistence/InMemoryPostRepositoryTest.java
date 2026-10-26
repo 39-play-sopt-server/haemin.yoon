@@ -12,7 +12,7 @@ class InMemoryPostRepositoryTest {
   private final InMemoryPostRepository repository = new InMemoryPostRepository();
 
   private Post post(String title) {
-    return new Post(title, "본문", Category.GENERAL, "작성자");
+    return new Post(title, "본문", Category.GENERAL, member("작성자"));
   }
 
   @Test
@@ -47,5 +47,9 @@ class InMemoryPostRepositoryTest {
     assertThrows(IllegalArgumentException.class, () -> repository.save(existing));
     assertEquals(1, repository.findAll(new PostListQuery(0, 100, null)).size());
     assertEquals("기존 글", repository.findById(existing.getId()).orElseThrow().getTitle());
+  }
+
+  private static org.sopt.member.domain.Member member(String name) {
+    return new org.sopt.member.domain.Member(name);
   }
 }

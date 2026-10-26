@@ -63,6 +63,12 @@ class PostgreSqlPostIntegrationTest {
     properties.add("spring.datasource.password", DATABASE::getPassword);
   }
 
+  @Autowired org.sopt.member.application.port.in.command.MemberCommandUseCase memberCommands;
+
+  private long memberId(String name) {
+    return memberCommands.createMember(name).getId();
+  }
+
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
   @Autowired JsonMapper json;
@@ -75,16 +81,20 @@ class PostgreSqlPostIntegrationTest {
   @BeforeEach
   void clearPosts() {
     jdbc.update("DELETE FROM posts");
+    jdbc.update("DELETE FROM members");
+    jdbc.execute("ALTER TABLE members ALTER COLUMN id RESTART WITH 2");
+    jdbc.update(
+        "INSERT INTO members (id, name, deleted, created_at, updated_at) OVERRIDING SYSTEM VALUE VALUES (1, '작성자', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"title", "content", "author"})
+  @ValueSource(strings = {"title", "content"})
   void nulInCreateReturns400WithoutSaving(String field) throws Exception {
     var body = new java.util.LinkedHashMap<String, Object>();
     body.put("title", "제목");
     body.put("content", "본문");
     body.put("category", "GENERAL");
-    body.put("author", "작성자");
+    body.put("memberId", 1L);
     body.put(field, "앞\0뒤");
     var response =
         mvc.perform(
@@ -105,7 +115,7 @@ class PostgreSqlPostIntegrationTest {
   @ParameterizedTest
   @ValueSource(strings = {"title", "content"})
   void nulInUpdateReturns400AndPreservesContentAndVersion(String field) throws Exception {
-    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
+    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, memberId("작성자"));
     long id = jdbc.queryForObject("SELECT id FROM posts", Long.class);
     var body = new java.util.LinkedHashMap<String, Object>();
     body.put("title", "변경 제목");
@@ -133,16 +143,15 @@ class PostgreSqlPostIntegrationTest {
   void validTextIncludingLiteralNulEscapeIsPreservedInPostgreSql() throws Exception {
     String text = " 한글😀\n\t\\u0000 ";
     var body =
-        java.util.Map.of("title", text, "content", text, "category", "GENERAL", "author", text);
+        java.util.Map.of("title", text, "content", text, "category", "GENERAL", "memberId", 1L);
     mvc.perform(
             post("/posts")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(body)))
         .andExpect(status().isCreated());
-    var stored = jdbc.queryForMap("SELECT title, content, author FROM posts");
+    var stored = jdbc.queryForMap("SELECT title, content FROM posts");
     assertEquals(text, stored.get("title"));
     assertEquals(text, stored.get("content"));
-    assertEquals(text, stored.get("author"));
   }
 
   @Test
@@ -152,7 +161,7 @@ class PostgreSqlPostIntegrationTest {
       assertEquals(18, connection.getMetaData().getDatabaseMajorVersion());
     }
     assertEquals(
-        List.of("1", "2", "3", "4", "5"),
+        List.of("1", "2", "3", "4", "5", "6"),
         jdbc.queryForList(
             "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank",
             String.class));
@@ -170,7 +179,7 @@ class PostgreSqlPostIntegrationTest {
                       .contentType(MediaType.APPLICATION_JSON)
                       .content(
                           """
-          {"title":"post-%d","content":"본문","category":"GENERAL","author":"작성자"}
+          {"title":"post-%d","content":"본문","category":"GENERAL","memberId":1}
           """
                               .formatted(index)))
               .andExpect(status().isCreated());
@@ -233,7 +242,7 @@ class PostgreSqlPostIntegrationTest {
   @Test
   void lockingOnePostDoesNotBlockDetailOfAnotherPost() {
     long id = createPost();
-    commands.createPost("다른 게시글", "본문", Category.GENERAL, "작성자");
+    commands.createPost("다른 게시글", "본문", Category.GENERAL, memberId("작성자"));
     long otherId = jdbc.queryForObject("SELECT MAX(id) FROM posts", Long.class);
     new TransactionTemplate(transactionManager)
         .executeWithoutResult(
@@ -412,7 +421,7 @@ class PostgreSqlPostIntegrationTest {
               .schemas(schema)
               .locations("classpath:db/migration")
               .load();
-      assertEquals(2, flyway.migrate().migrationsExecuted);
+      assertEquals(3, flyway.migrate().migrationsExecuted);
       var rows =
           jdbc.queryForList(
               "SELECT title, content, view_count, version, created_at, updated_at FROM "
@@ -466,7 +475,7 @@ class PostgreSqlPostIntegrationTest {
               .load();
       assertThrows(FlywayException.class, flyway::migrate);
       flyway.baseline();
-      assertEquals(4, flyway.migrate().migrationsExecuted);
+      assertEquals(5, flyway.migrate().migrationsExecuted);
       flyway.validate();
       try (var rows =
           statement.executeQuery(
@@ -481,12 +490,109 @@ class PostgreSqlPostIntegrationTest {
         assertFalse(rows.next());
       }
       assertEquals(
-          List.of("BASELINE:1", "SQL:2", "SQL:3", "SQL:4", "SQL:5"),
+          List.of("BASELINE:1", "SQL:2", "SQL:3", "SQL:4", "SQL:5", "SQL:6"),
           jdbc.queryForList(
               "SELECT type || ':' || version FROM "
                   + schema
                   + ".flyway_schema_history WHERE success = true ORDER BY installed_rank",
               String.class));
+      assertEquals(0, flyway.migrate().migrationsExecuted);
+    } finally {
+      jdbc.execute("DROP SCHEMA " + schema + " CASCADE");
+    }
+  }
+
+  @Test
+  void memberDeletionKeepsPostsAndNamesButRejectsNewPostsInPostgreSql() throws Exception {
+    var response =
+        mvc.perform(
+                post("/members")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"name\":\"홍길동\"}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse();
+    long memberId = json.readTree(response.getContentAsString()).get("data").get("id").longValue();
+    commands.createPost("회원 게시글", "본문", Category.GENERAL, memberId);
+    long postId = jdbc.queryForObject("SELECT id FROM posts", Long.class);
+    mvc.perform(delete("/members/{id}", memberId)).andExpect(status().isOk());
+    assertTrue(
+        jdbc.queryForObject("SELECT deleted FROM members WHERE id = ?", Boolean.class, memberId));
+    mvc.perform(get("/posts"))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                    "$.data[0].author")
+                .value("홍길동"));
+    mvc.perform(get("/posts/{id}", postId))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                    "$.data.author")
+                .value("홍길동"));
+    mvc.perform(
+            post("/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"GENERAL\",\"memberId\":%d}"
+                        .formatted(memberId)))
+        .andExpect(status().isNotFound());
+    assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM posts", Integer.class));
+  }
+
+  @Test
+  void v6LinksEveryLegacyPostWithoutMergingNamesAndEnforcesMemberReference() {
+    String schema = "v5_" + UUID.randomUUID().toString().replace("-", "");
+    jdbc.execute("CREATE SCHEMA " + schema);
+    try {
+      Flyway.configure()
+          .dataSource(DATABASE.getJdbcUrl(), DATABASE.getUsername(), DATABASE.getPassword())
+          .defaultSchema(schema)
+          .schemas(schema)
+          .locations("classpath:db/migration")
+          .target("5")
+          .load()
+          .migrate();
+      for (int index = 0; index < 2; index++) {
+        jdbc.update(
+            "INSERT INTO "
+                + schema
+                + ".posts (title, content, category, author, created_at, updated_at, view_count, version) VALUES (?, '본문', 'GENERAL', ' 동명이인😀 ', TIMESTAMP '2026-10-13 12:00:00.123456', TIMESTAMP '2026-10-14 12:00:00.654321', 17, 3)",
+            "기존 글" + index);
+      }
+      var flyway =
+          Flyway.configure()
+              .dataSource(DATABASE.getJdbcUrl(), DATABASE.getUsername(), DATABASE.getPassword())
+              .defaultSchema(schema)
+              .schemas(schema)
+              .locations("classpath:db/migration")
+              .load();
+      assertEquals(1, flyway.migrate().migrationsExecuted);
+      var rows =
+          jdbc.queryForList(
+              "SELECT p.title, p.view_count, p.version, p.member_id, p.created_at, p.updated_at, m.name, m.deleted, m.created_at AS member_created_at, m.updated_at AS member_updated_at FROM "
+                  + schema
+                  + ".posts p JOIN "
+                  + schema
+                  + ".members m ON m.id = p.member_id ORDER BY p.id");
+      assertEquals(2, rows.size());
+      assertNotEquals(rows.get(0).get("member_id"), rows.get(1).get("member_id"));
+      for (int index = 0; index < rows.size(); index++) {
+        var row = rows.get(index);
+        assertEquals("기존 글" + index, row.get("title"));
+        assertEquals(" 동명이인😀 ", row.get("name"));
+        assertEquals(false, row.get("deleted"));
+        assertEquals(17L, row.get("view_count"));
+        assertEquals(3L, row.get("version"));
+        assertEquals(row.get("created_at"), row.get("member_created_at"));
+        assertEquals(row.get("updated_at"), row.get("member_updated_at"));
+      }
+      assertThrows(
+          org.springframework.dao.DataIntegrityViolationException.class,
+          () -> jdbc.update("UPDATE " + schema + ".posts SET member_id = NULL"));
+      assertThrows(
+          org.springframework.dao.DataIntegrityViolationException.class,
+          () -> jdbc.update("UPDATE " + schema + ".posts SET member_id = 999999"));
       assertEquals(0, flyway.migrate().migrationsExecuted);
     } finally {
       jdbc.execute("DROP SCHEMA " + schema + " CASCADE");
@@ -521,7 +627,7 @@ class PostgreSqlPostIntegrationTest {
   }
 
   private long createPost() {
-    commands.createPost("조회수 검증", "본문", Category.GENERAL, "작성자");
+    commands.createPost("조회수 검증", "본문", Category.GENERAL, memberId("작성자"));
     return jdbc.queryForObject("SELECT id FROM posts", Long.class);
   }
 

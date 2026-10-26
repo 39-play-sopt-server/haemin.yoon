@@ -19,7 +19,7 @@ class ConcurrentPostStorageTest {
     runConcurrently(
         worker -> {
           for (int i = 1; i <= 1000; i++) {
-            repository.save(new Post("제목", "본문", Category.GENERAL, "작성자"));
+            repository.save(new Post("제목", "본문", Category.GENERAL, member("작성자")));
           }
         });
     var posts = new ArrayList<Post>();
@@ -50,5 +50,9 @@ class ConcurrentPostStorageTest {
         future.get(15, java.util.concurrent.TimeUnit.SECONDS);
       }
     }
+  }
+
+  private static org.sopt.member.domain.Member member(String name) {
+    return new org.sopt.member.domain.Member(name);
   }
 }

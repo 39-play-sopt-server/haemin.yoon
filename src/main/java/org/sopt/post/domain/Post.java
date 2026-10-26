@@ -4,12 +4,16 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import org.sopt.global.entity.BaseEntity;
+import org.sopt.member.domain.Member;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 
@@ -21,7 +25,6 @@ public class Post extends BaseEntity {
   public static final int MAX_TITLE_LENGTH = 200;
 
   public static final int MAX_CONTENT_LENGTH = 10_000;
-  public static final int MAX_AUTHOR_LENGTH = 50;
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,8 +40,9 @@ public class Post extends BaseEntity {
   @Column(nullable = false, length = 30)
   private Category category;
 
-  @Column(nullable = false, columnDefinition = "text")
-  private String author;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "member_id", nullable = false, updatable = false)
+  private Member member;
 
   /** 조회수는 전용 출력 포트의 원자적 UPDATE로 변경하며 일반 엔티티 수정에서 제외합니다. */
   @Column(name = "view_count", nullable = false, updatable = false)
@@ -53,23 +57,19 @@ public class Post extends BaseEntity {
   protected Post() {}
 
   /** 새 게시글은 ID 없이 생성하고, 저장 시 DB가 ID를 부여합니다. */
-  public Post(String title, String content, Category category, String author) {
+  public Post(String title, String content, Category category, Member member) {
     validateTitle(title);
     validateContent(content);
     if (category == null) {
       throw new PostException(PostErrorCode.INVALID_CATEGORY);
     }
-    if (author == null || author.isBlank()) {
+    if (member == null || member.isDeleted()) {
       throw new PostException(PostErrorCode.INVALID_AUTHOR);
-    }
-    validateNoNul(author);
-    if (author.length() > MAX_AUTHOR_LENGTH) {
-      throw new PostException(PostErrorCode.AUTHOR_TOO_LONG);
     }
     this.title = title;
     this.content = content;
     this.category = category;
-    this.author = author;
+    this.member = member;
   }
 
   public Long getId() {
@@ -88,8 +88,8 @@ public class Post extends BaseEntity {
     return category;
   }
 
-  public String getAuthor() {
-    return author;
+  public Member getMember() {
+    return member;
   }
 
   public long getViewCount() {

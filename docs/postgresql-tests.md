@@ -27,15 +27,15 @@ SQL 실행 20초 제한을 적용해 잠금 오류로 테스트가 무한 대기
 
 `src/postgresTest/java`의 `PostgreSqlPostIntegrationTest`에서 다음을 검증합니다.
 
-- 빈 PostgreSQL에 Flyway V1~V4 적용과 JPA 매핑 검증.
-- 제목·본문·작성자의 NUL 입력은 생성 시 400으로 거부하며 저장하지 않음. 수정 거부 시 기존 본문·버전 보존.
+- 빈 PostgreSQL에 Flyway V1~V6 적용과 JPA 매핑 검증.
+- 제목·본문의 NUL 입력은 생성 시 400으로 거부하며 저장하지 않음. 수정 거부 시 기존 본문·버전 보존.
 - 줄바꿈·탭·한글·이모지와 문자 그대로의 `\u0000` 텍스트를 변형 없이 저장.
 - 작업자 8개의 동시 HTTP 생성 40건: 유실 없음, ID 고유성, 모든 제목 보존, 초기 조회수 0.
 - 동시 HTTP 상세 조회 40건: 최종 조회수 40, 각 응답의 조회수가 정확히 1~40.
 - 오래된 엔티티로 본문을 수정해도 다른 트랜잭션의 조회수 증가가 유지됨.
 - 한 게시글의 행 잠금을 유지하는 중에도 다른 게시글의 상세 열람이 완료됨.
 - 후속 처리 실패 시 상세 조회수 증가가 롤백됨.
-- 별도 기존 스키마의 자동 baseline 거부, 명시적 baseline 1 후 기존 데이터 보존 및 V2~V4 적용.
+- 별도 기존 스키마의 자동 baseline 거부, 명시적 baseline 1 후 기존 데이터 보존 및 V2~V6 적용.
 - 같은 버전을 읽은 트랜잭션 두 개 중 하나만 수정 커밋 성공.
 - 같은 버전의 동시 HTTP 수정 요청에서 200 하나와 409·CONFLICT 응답 검증.
 - 실제 조회 직후 배리어로 두 HTTP 요청의 스냅샷을 맞춰 커밋 예외가 409로 전달됨을 검증.
@@ -55,3 +55,6 @@ SQL 실행 20초 제한을 적용해 잠금 오류로 테스트가 무한 대기
 
 참고: [Testcontainers PostgreSQL 모듈](https://java.testcontainers.org/modules/databases/postgres/),
 [Gradle JVM Test Suite](https://docs.gradle.org/current/userguide/jvm_test_suite_plugin.html).
+
+- 회원 생성·소프트 삭제 이후 게시글과 작성자 이름 보존, 비활성 회원의 새 글 거부.
+- V5→V6에서 기존 글·이름·시각·조회수·버전 보존, 동명이인 미병합, 필수 회원 외래 키 검증.

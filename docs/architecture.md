@@ -48,6 +48,8 @@ flowchart LR
 
 | 요청 | 매핑 | 성공 상태 |
 | --- | --- | --- |
+| `POST /members` | 회원 생성 | 201 |
+| `DELETE /members/{id}` | 회원 소프트 삭제 | 200 |
 | `POST /posts` | `@PostMapping` | 201 |
 | `GET /posts` | `@GetMapping` | 200 |
 | `GET /posts/{id}` | `@GetMapping("/{id}")` | 200 |
@@ -117,7 +119,8 @@ Boot 기본 HTML/Map 대신 같은 응답 객체를 사용하고 서버의 오�
 
 `spring-boot-starter-validation`과 요청 DTO의 `@NotBlank`·`@NotNull`, 생성·수정 컨트롤러의 `@Valid`로
 HTTP 입력의 필수값을 검사합니다. 여러 필드 오류를 모아 `VALIDATION_FAILED`로 반환하며 유스케이스 호출을 막습니다.
-생성 요청은 title·content·author에 NotBlank, category에 NotNull을 적용합니다.
+생성 요청은 title·content에 NotBlank, category에 NotNull, memberId에 NotNull·Positive를 적용합니다.
+회원 생성·삭제와 작성자 연관관계는 [회원과 게시글 작성자](members.md)를 참고하세요.
 수정 요청은 title·content에 NotBlank, 필수 version에 NotNull·PositiveOrZero를 적용합니다.
 정수 필드로 보낸 소수는 Jackson에서 절삭하지 않고 INVALID_REQUEST로 거부합니다.
 JSON enum 입력은 공개 문자열 값만 허용하도록 전역 Jackson 설정에서 숫자 순번 변환을 금지합니다.
@@ -128,16 +131,16 @@ JSON enum 입력은 공개 문자열 값만 허용하도록 전역 Jackson 설�
 게시글 조회의 404보다 입력 검증의 400을 먼저 반환합니다. 빈 JSON 객체 `{}`도 필수값 검증 대상이며,
 빈 본문·JSON의 `null`·깨진 JSON은 역직렬화 또는 필수 본문 처리 단계의 INVALID_REQUEST입니다.
 도메인의 검증도 유지해 HTTP를 거치지 않는 호출에서도 잘못된 게시글 생성·수정을 거부합니다.
-제목·본문·작성자에 PostgreSQL 텍스트로 저장할 수 없는 NUL(U+0000)이 포함되면
+제목·본문에 PostgreSQL 텍스트로 저장할 수 없는 NUL(U+0000)이 포함되면
 도메인에서 거부하고 HTTP 400·NUL_CHARACTER_NOT_ALLOWED를 반환합니다. 검증 목록은 빈 배열입니다.
 생성·수정에 같은 규칙을 적용하며 수정 거부 시 기존 제목·본문과 편집 버전은 유지합니다.
 문자를 제거하거나 치환하지 않으며, 줄바꿈·탭·이모지와 문자 그대로의 `\u0000` 텍스트는 보존합니다.
-길이 상한은 제목 200, 본문 10,000, 작성자 50이며 최대값까지 허용하고 초과 입력은 거부합니다.
+길이 상한은 제목 200, 본문 10,000이며 최대값까지 허용하고 초과 입력은 거부합니다.
 `Post`의 길이 상수가 정책을 정의하고 도메인 검증과 요청 DTO의 `@Size`가 같은 상수를 사용합니다.
 길이는 Java `String.length()`와 `@Size`에 맞춰 UTF-16 코드 단위로 계산합니다.
 예를 들어 일반 한글은 1, 보충 문자 영역의 이모지는 2로 계산하며, 공백을 제거하거나 내용을 잘라 저장하지 않습니다.
 생성·수정 모두 검증하며, 수정 검증 실패 시 제목·본문 전체를 보존합니다.
-HTTP 외 호출에서도 초과 입력은 TITLE_TOO_LONG·CONTENT_TOO_LONG·AUTHOR_TOO_LONG으로 거부합니다.
+HTTP 외 호출에서도 초과 입력은 TITLE_TOO_LONG·CONTENT_TOO_LONG으로 거부합니다.
 길이 정책 변경은 게시글 도메인의 상수를 수정하고 경계값 테스트·문서를 함께 갱신합니다.
 다른 도메인의 길이 정책은 해당 도메인에 둡니다.
 DB의 TEXT 타입과 기존 데이터는 유지하므로 이 제한은 새 생성·수정 입력에 적용됩니다.
@@ -193,7 +196,7 @@ Post.update는 제목·본문을 모두 검증한 뒤 필드를 바꾸므로 검
 `PostResponse.from(Post)`와 `PostCategory`의 변환 메서드를 통해 DTO와 도메인을 연결합니다.
 웹 어댑터가 만든 조회 응답 DTO와 목록은 엔티티와 분리되어 이후 변경·삭제로 바뀌지 않습니다.
 
-`Post`가 테이블 매핑과 유효성 검증을 함께 담당하며, 별도 엔티티 변환은 없습니다. 카테고리는 문자열, 제목·본문·작성자는 TEXT로 저장합니다.
+`Post`가 테이블 매핑과 유효성 검증을 함께 담당하며, 별도 엔티티 변환은 없습니다. 카테고리는 문자열, 제목·본문은 TEXT로 저장하고 작성자는 필수 Member 연관관계로 저장합니다.
 작성 시각은 기존 LocalDateTime 의미를 유지하며 DB의 마이크로초 정밀도에 맞춥니다.
 
 `PostPersistenceAdapter`가 `PostRepository`를 사용합니다.
@@ -217,7 +220,7 @@ ID는 PostgreSQL identity 컬럼이 자동 생성해 서버 재시작이나 다�
 상세 조회는 조회수 UPDATE의 반영 행 수가 0이면 POST_NOT_FOUND를 반환합니다. 수정·삭제는 대상 조회로 존재 여부를 확인합니다.
 
 스키마는 Flyway의 버전별 SQL로 관리하고 운영·테스트의 JPA는 ddl-auto=validate로 매핑을 검증합니다.
-V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스, V4는 편집 버전 추가를 담당합니다.
+V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스, V4는 편집 버전, V5는 수정일, V6은 회원과 게시글 작성자 연결을 담당합니다.
 비밀번호는 환경변수로 설정합니다.
 메모리 저장소는 src/test 아래에서 단위 테스트 대역으로만 사용합니다.
 대역은 같은 엔티티 참조를 반환해 변경 결과를 관찰하며, JPA 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트로 검증합니다.
@@ -291,12 +294,12 @@ HTTP 상세 조회는 `PostFacade.getPostDetail()`을 호출합니다. Facade는
 실행 방법과 검증 범위는 [PostgreSQL 통합 테스트](postgresql-tests.md)를 참고하세요.
 벌크 UPDATE 전 `flushAutomatically = true`로 대기 중인 변경을 반영하고,
 영속성 어댑터에서 `EntityManager.getReference()`로 대상 참조를 얻고,
-해당 게시글만 `EntityManager.refresh()`로 다시 읽습니다.
+이미 읽은 게시글만 `EntityManager.refresh()`로 다시 읽습니다. 아직 로드하지 않은 참조는 다음 단건 조회에서 회원과 함께 읽습니다.
 참조를 얻을 때 미리 조회하지 않으므로 일반 상세 열람은 UPDATE 1회와 SELECT 1회로 처리합니다.
 전체 영속성 컨텍스트를 비우지 않으므로, 같은 트랜잭션에서 이미 조회한 다른 엔티티와
 대상 게시글 모두 이후 수정이 변경 감지로 저장됩니다.
 `refresh()`는 대상의 메모리 값을 DB 값으로 덮어쓰므로 UPDATE 전 flush 순서를 유지해야 합니다.
-현재는 게시글에 연관관계가 없으며, 향후 `CascadeType.REFRESH`를 추가하면 연관 엔티티까지
+회원 연관관계에는 cascade를 적용하지 않습니다. 향후 `CascadeType.REFRESH`를 추가하면 연관 엔티티까지
 갱신 범위가 넓어지는지 함께 검토해야 합니다.
 `view_count`는 `updatable = false`로 일반 엔티티 UPDATE에서 제외하므로,
 오래된 엔티티로 제목·본문을 수정해도 다른 요청이 증가시킨 조회수를 덮어쓰지 않습니다.
@@ -360,12 +363,13 @@ DB_PASSWORD는 빈 값입니다. 환경변수로 실제 연결·인증 설정을
 ./gradlew bootRun
 ```
 
-게시글 생성 예시:
+먼저 `POST /members`에 `{"name":"작성자"}`를 보내고 응답의 회원 ID를 확인합니다.
+아래 memberId에는 실제 생성된 회원 ID를 전달합니다. 게시글 생성 예시:
 
 ```bash
 curl -i http://localhost:8080/posts \
   -H 'Content-Type: application/json' \
-  -d '{"title":"첫 게시글","content":"본문","category":"GENERAL","author":"작성자"}'
+  -d '{"title":"첫 게시글","content":"본문","category":"GENERAL","memberId":1}'
 ```
 
 생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data 배열에서 생성된 ID를 확인합니다. 기본적으로 첫 20건을 반환합니다.

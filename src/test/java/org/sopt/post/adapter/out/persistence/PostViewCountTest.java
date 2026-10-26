@@ -19,6 +19,7 @@ import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
+import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -36,7 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
     })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class PostViewCountTest {
+class PostViewCountTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
   @Autowired PostCommandUseCase commands;
@@ -85,6 +86,22 @@ class PostViewCountTest {
   }
 
   @Test
+  void listingFetchesAllAuthorNamesInOneQuery() {
+    commands.createPost("첫 글", "본문", Category.GENERAL, memberId("첫 회원"));
+    commands.createPost("둘째 글", "본문", Category.GENERAL, memberId("둘째 회원"));
+    var statistics =
+        entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+    statistics.clear();
+
+    var posts =
+        queries.getPosts(new org.sopt.post.application.port.in.query.PostListQuery(0, 20, null));
+    assertEquals(
+        java.util.List.of("첫 회원", "둘째 회원"),
+        posts.stream().map(post -> post.getMember().getName()).toList());
+    assertEquals(1, statistics.getPrepareStatementCount());
+  }
+
+  @Test
   void missingPostDoesNotIncrementOtherPosts() throws Exception {
     long id = createPost();
     mvc.perform(get("/posts/{id}", Long.MAX_VALUE))
@@ -120,7 +137,7 @@ class PostViewCountTest {
   @Test
   void incrementKeepsOtherManagedPostsAvailableForDirtyChecking() {
     long id = createPost();
-    commands.createPost("다른 게시글", "다른 본문", Category.GENERAL, "작성자");
+    commands.createPost("다른 게시글", "다른 본문", Category.GENERAL, memberId("작성자"));
     long otherId = jdbc.queryForObject("SELECT MAX(id) FROM posts", Long.class);
 
     new TransactionTemplate(transactionManager)
@@ -242,7 +259,7 @@ class PostViewCountTest {
   }
 
   private long createPost() {
-    commands.createPost("조회수 검증", "본문", Category.GENERAL, "작성자");
+    commands.createPost("조회수 검증", "본문", Category.GENERAL, memberId("작성자"));
     return jdbc.queryForObject("SELECT id FROM posts", Long.class);
   }
 

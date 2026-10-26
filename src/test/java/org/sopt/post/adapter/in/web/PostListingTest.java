@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
+import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -23,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class PostListingTest {
+class PostListingTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
   @Autowired PostCommandUseCase commands;
   @Autowired JdbcTemplate jdbc;
@@ -99,7 +100,7 @@ class PostListingTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data").isArray())
         .andExpect(jsonPath("$.data").isEmpty());
-    commands.createPost("일반 글", "본문", Category.GENERAL, "작성자");
+    commands.createPost("일반 글", "본문", Category.GENERAL, memberId("작성자"));
     mvc.perform(get("/posts").param("category", "QUESTION"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data").isEmpty());
@@ -159,7 +160,7 @@ class PostListingTest {
 
   private void createPosts(int count) {
     for (int i = 0; i < count; i++) {
-      commands.createPost("post-" + i, "본문", Category.values()[i % 3], "작성자");
+      commands.createPost("post-" + i, "본문", Category.values()[i % 3], memberId("작성자"));
     }
   }
 }
