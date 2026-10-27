@@ -1,0 +1,1 @@
+-- H2에는 pg_trgm과 GIN이 없습니다. 해당 성능 계약은 postgresTest에서 실제 PostgreSQL로 검증합니다.

@@ -25,7 +25,11 @@ class PostCursorCodecTest {
         new Category[] {null, Category.GENERAL, Category.QUESTION, Category.INFORMATION}) {
       var cursor =
           new PostCursor(
-              LocalDateTime.of(2026, 10, 26, 12, 34, 56, 123456000), Long.MAX_VALUE, category);
+              LocalDateTime.of(2026, 10, 26, 12, 34, 56, 123456000),
+              Long.MAX_VALUE,
+              category,
+              null,
+              null);
       assertEquals(cursor, PostCursorCodec.decode(PostCursorCodec.encode(cursor)));
     }
     assertNull(PostCursorCodec.decode(null));
@@ -36,7 +40,7 @@ class PostCursorCodecTest {
   @ParameterizedTest
   @MethodSource("publishedCategoryValues")
   void preservesPublishedVersionOneCategoryValues(Category category, String publicValue) {
-    var cursor = new PostCursor(LocalDateTime.of(2026, 10, 26, 12, 0), 42L, category);
+    var cursor = new PostCursor(LocalDateTime.of(2026, 10, 26, 12, 0), 42L, category, null, null);
     String published =
         Base64.getUrlEncoder()
             .withoutPadding()
@@ -57,7 +61,7 @@ class PostCursorCodecTest {
   @ParameterizedTest
   @ValueSource(
       strings = {
-        "2|2026-10-26T12:00|1|ALL",
+        "4|2026-10-26T12:00|1|ALL",
         "1|invalid|1|ALL",
         "1|2026-10-26T12:00|0|ALL",
         "1|2026-10-26T12:00|-1|ALL",
@@ -79,13 +83,61 @@ class PostCursorCodecTest {
   }
 
   @Test
-  void queryRejectsInvalidSizeAndCursorCategoryForNonHttpCallers() {
-    assertThrows(PostException.class, () -> new PostListQuery(null, 0, null));
-    assertThrows(PostException.class, () -> new PostListQuery(null, 101, null));
-    var cursor = new PostCursor(LocalDateTime.of(2026, 10, 26, 0, 0), 1L, Category.GENERAL);
+  void roundTripsSearchTermsIncludingDelimiterAndMaximumUnicodeLength() {
+    for (String keyword : new String[] {"Spring", "100%_!|검색", "가".repeat(198) + "|!"}) {
+      var cursor =
+          new PostCursor(
+              LocalDateTime.of(2026, 10, 26, 12, 0), 42L, Category.GENERAL, keyword, null);
+      assertEquals(cursor, PostCursorCodec.decode(PostCursorCodec.encode(cursor)));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"", " ", "앞\0뒤"})
+  void rejectsInvalidVersionTwoSearchTermsAsInvalidCursor(String keyword) {
+    String raw = "2|2026-10-26T12:00|42|ALL|" + keyword;
+    String token =
+        Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(raw.getBytes(StandardCharsets.UTF_8));
     assertEquals(
         PostErrorCode.INVALID_CURSOR,
-        assertThrows(PostException.class, () -> new PostListQuery(cursor, 20, null))
+        assertThrows(PostException.class, () -> PostCursorCodec.decode(token)).getErrorCode());
+  }
+
+  @Test
+  void versionThreeBindsAuthorAndPreservesKeywordDelimiters() {
+    for (String keyword : new String[] {null, "검색|100%_!", "가".repeat(200)}) {
+      var cursor =
+          new PostCursor(
+              LocalDateTime.of(2026, 10, 26, 12, 0),
+              42L,
+              Category.GENERAL,
+              keyword,
+              Long.MAX_VALUE);
+      assertEquals(cursor, PostCursorCodec.decode(PostCursorCodec.encode(cursor)));
+    }
+    var invalid = "3|2026-10-26T12:00|42|ALL|0|검색";
+    String token =
+        Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(invalid.getBytes(StandardCharsets.UTF_8));
+    assertEquals(
+        PostErrorCode.INVALID_CURSOR,
+        assertThrows(PostException.class, () -> PostCursorCodec.decode(token)).getErrorCode());
+    assertThrows(PostException.class, () -> new PostListQuery(null, 20, null, null, 0L));
+    assertThrows(PostException.class, () -> new PostListQuery(null, 20, null, null, -1L));
+  }
+
+  @Test
+  void queryRejectsInvalidSizeAndCursorCategoryForNonHttpCallers() {
+    assertThrows(PostException.class, () -> new PostListQuery(null, 0, null, null, null));
+    assertThrows(PostException.class, () -> new PostListQuery(null, 101, null, null, null));
+    var cursor =
+        new PostCursor(LocalDateTime.of(2026, 10, 26, 0, 0), 1L, Category.GENERAL, null, null);
+    assertEquals(
+        PostErrorCode.INVALID_CURSOR,
+        assertThrows(PostException.class, () -> new PostListQuery(cursor, 20, null, null, null))
             .getErrorCode());
   }
 }

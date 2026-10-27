@@ -22,6 +22,9 @@ public enum PostErrorCode implements ErrorCode {
       "본문은 " + Post.MAX_CONTENT_LENGTH + "자를 초과할 수 없습니다."),
   INVALID_CATEGORY(HttpStatus.BAD_REQUEST, "INVALID_CATEGORY", "카테고리는 필수입니다."),
   INVALID_PAGINATION(HttpStatus.BAD_REQUEST, "INVALID_PAGINATION", "목록 크기가 허용 범위를 벗어났습니다."),
+  INVALID_AUTHOR_ID(HttpStatus.BAD_REQUEST, "INVALID_AUTHOR_ID", "작성자 ID는 양수여야 합니다."),
+  INVALID_SEARCH_KEYWORD(
+      HttpStatus.BAD_REQUEST, "INVALID_SEARCH_KEYWORD", "제목 검색어가 너무 길거나 허용되지 않는 문자를 포함합니다."),
   INVALID_CURSOR(HttpStatus.BAD_REQUEST, "INVALID_CURSOR", "유효하지 않은 게시글 커서입니다."),
   INVALID_VERSION(HttpStatus.BAD_REQUEST, "INVALID_VERSION", "게시글 버전은 0 이상이어야 합니다."),
   INVALID_AUTHOR(HttpStatus.BAD_REQUEST, "INVALID_AUTHOR", "작성자는 활성 회원이어야 합니다.");

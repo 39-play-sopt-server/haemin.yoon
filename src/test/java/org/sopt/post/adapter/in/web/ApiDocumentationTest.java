@@ -65,7 +65,9 @@ class ApiDocumentationTest {
                 .andExpect(status().isOk())
                 .andExpect(
                     jsonPath("$.paths['/posts'].get.parameters[*].name")
-                        .value(containsInAnyOrder("cursor", "size", "category")))
+                        .value(
+                            containsInAnyOrder(
+                                "cursor", "size", "category", "keyword", "authorId")))
                 .andReturn()
                 .getResponse()
                 .getContentAsString());

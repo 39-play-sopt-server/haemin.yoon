@@ -94,7 +94,8 @@ class PostViewCountTest extends MemberDatabaseSupport {
     statistics.clear();
 
     var posts =
-        queries.getPosts(new org.sopt.post.application.port.in.query.PostListQuery(null, 20, null));
+        queries.getPosts(
+            new org.sopt.post.application.port.in.query.PostListQuery(null, 20, null, null, null));
     assertEquals(
         java.util.List.of("둘째 회원", "첫 회원"),
         posts.posts().stream().map(post -> post.getMember().getName()).toList());

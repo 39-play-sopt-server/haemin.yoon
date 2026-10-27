@@ -226,11 +226,17 @@ V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스
 대역은 같은 엔티티 참조를 반환해 변경 결과를 관찰하며, JPA 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트로 검증합니다.
 엔티티의 ID·필드 복원은 JPA에 맡기며, 수동 ID 생성자나 저장소 복원용 팩터리는 제공하지 않습니다.
 
-## 무한 스크롤과 카테고리 조회
+## 무한 스크롤과 동적 검색
 
-첫 요청은 `GET /posts?size=20&category=QUESTION`으로 보내고 이후 응답의 nextCursor를
-`GET /posts?size=20&category=QUESTION&cursor=...`에 그대로 전달합니다.
+첫 요청은 `GET /posts?size=20&authorId=1&category=QUESTION&keyword=스프링`으로 보내고 이후 응답의 nextCursor를
+`GET /posts?size=20&authorId=1&category=QUESTION&keyword=스프링&cursor=...`에 그대로 전달합니다.
+keyword는 선택 사항이며 제목의 대소문자를 구분하지 않는 부분 일치 검색입니다.
+앞뒤 공백을 제거하고 빈 검색어는 전체 목록으로 처리합니다. 정규화 후 최대 200 UTF-16 코드 단위이며 NUL은 거부합니다.
+본문·작성자 이름은 검색하지 않습니다. `%`, `_`, `!`, 역슬래시 등은 입력한 문자 그대로 검색합니다.
 size는 기본 20, 허용 범위는 1~100이며 category 생략·빈 값은 전체 분류입니다.
+authorId는 작성자 회원 ID의 양수 필터이며 생략하면 모든 작성자를 조회합니다.
+존재하지 않는 ID는 빈 목록이며 소프트 삭제된 회원의 기존 게시글도 검색할 수 있습니다.
+작성자 ID·카테고리·제목을 각각 생략하거나 원하는 조합으로 전달할 수 있습니다.
 `page` 기반 이동은 제공하지 않습니다. 기존 배열 응답을 사용하던 클라이언트는 `data.items`를 읽도록 변경해야 합니다.
 
 ```json
@@ -250,30 +256,39 @@ size는 기본 20, 허용 범위는 1~100이며 category 생략·빈 값은 전�
 조회 결과를 `items` 뒤에 이어 붙이고 hasNext가 true일 때만 nextCursor로 다음 요청을 보냅니다.
 마지막 목록이나 빈 결과는 hasNext=false, nextCursor=null입니다. 마지막 커서가 null이라고
 첫 요청을 반복해서는 안 됩니다. 총 개수·총 페이지 수는 제공하지 않습니다.
-카테고리를 바꾸면 items와 cursor를 초기화해 첫 요청부터 다시 시작합니다.
+작성자 ID·카테고리·검색어를 바꾸면 items와 cursor를 초기화해 첫 요청부터 다시 시작합니다.
+앞뒤 공백 제거 후 같은 검색어는 커서를 재사용할 수 있지만 대소문자를 포함해 문자열을 바꾸면 다시 시작합니다.
 
-`PostListQuery`는 크기와 커서의 카테고리 일치를 검증합니다. `PostCursor`는 마지막으로 반환한
-글의 생성일·ID·카테고리를 담으며 회원 ID나 게시글 엔티티를 재조회하지 않습니다.
+`PostListQuery`는 크기와 커서의 작성자 ID·카테고리·검색어 일치를 검증합니다.
+`PostSearchKeyword`는 목록 조건과 커서가 공유하는 정규화·길이·NUL 검증을 담당합니다.
+`PostCursor`는 마지막으로 반환한 글의 생성일·ID·카테고리·검색어·작성자 ID를 담으며 경계 글이나 회원 엔티티의 존재 여부를 재조회하지 않습니다.
 입력·출력 포트는 Spring Data나 웹 인코딩에 의존하지 않습니다.
-`PostCursorCodec`이 웹 어댑터에서 버전·생성일·ID·카테고리를 URL 안전 Base64 문자열로 변환합니다.
+`PostCursorCodec`이 웹 어댑터에서 버전·생성일·ID·카테고리·검색어를 URL 안전 Base64 문자열로 변환합니다.
+작성자 필터가 없으면 비검색 버전 1·제목 검색 버전 2를 유지하며, 작성자 필터가 있으면 버전 3으로 작성자 ID와 선택적 검색어를 보존합니다.
+기존 버전 1·2 커서도 계속 사용할 수 있습니다. 검색어의 구분자 문자도 손실 없이 보존합니다.
 카테고리는 PostCategory의 외부 값과 명시적 도메인 매핑을 사용하므로 도메인 Enum 이름을 토큰에 직접 기록하지 않습니다.
 클라이언트는 토큰을 해석하거나 조립하지 않고 응답 값을 그대로 전달합니다.
 이 토큰은 조회 경계를 표현하며 인증·인가 수단은 아닙니다.
-형식·버전·길이가 잘못된 커서, 유효하지 않은 시각·ID, 요청과 카테고리가 다른 커서는
+형식·버전·길이가 잘못된 커서, 유효하지 않은 시각·ID, 요청과 작성자 ID·카테고리·검색어가 다른 커서는
 HTTP 400 INVALID_CURSOR입니다. 잘못된 size는 INVALID_PAGINATION 또는 숫자 바인딩의 INVALID_REQUEST입니다.
 
-저장소는 카테고리를 적용하고 아래 경계보다 오래된 글을 생성일·ID 내림차순으로 조회합니다.
+저장소는 작성자 ID·카테고리·제목 검색을 적용하고 아래 경계보다 오래된 글을 생성일·ID 내림차순으로 조회합니다.
 
 ```sql
 (created_at, id) < (:createdAt, :id)
 ```
 
 생성일·ID를 튜플로 비교해 복합 인덱스의 검색 조건에 경계를 적용합니다. OR 필터로 이전 구간을 재탐색하지 않도록 합니다.
-`PostPersistenceAdapter`가 항상 offset=0으로 최대 size+1개를 읽습니다.
+`PostListingRepository` 프래그먼트의 구현이 실제 전달된 조건만 고정 HQL 절로 조합합니다.
+작성자 ID는 `p.member.id = :authorId`, 카테고리는 `p.category = :category`로 추가하고 파라미터로 바인딩합니다.
+조합마다 저장소 메서드를 늘리거나 `:param IS NULL OR ...`로 검색 조건을 무력화하지 않습니다.
+사용자 입력은 모두 파라미터로 바인딩하고 제목 검색은 `ILIKE ... ESCAPE '!'`를 사용합니다.
+검색어의 `!`, `%`, `_`를 이스케이프해 와일드카드가 아닌 문자로 비교합니다.
+`PostPersistenceAdapter`는 조회를 프래그먼트에 위임하며 offset 없이 최대 size+1개를 읽습니다.
 `PostQueryService`가 추가 한 건으로 hasNext를 판단하고 실제 반환할 size개 중 마지막 글로
 nextCursor를 만듭니다. 확인용 한 건을 커서로 쓰지 않으므로 다음 글을 누락하지 않습니다.
 조회 결과는 `PostListResult`, 웹 표현은 `PostListResponse`가 담당합니다.
-회원은 EntityGraph 또는 fetch join으로 함께 읽어 작성자 이름의 N+1 조회를 방지합니다.
+회원은 fetch join으로 함께 읽어 작성자 이름의 N+1 조회를 방지합니다.
 COUNT 쿼리는 실행하지 않으며 목록 조회는 조회수를 변경하지 않습니다.
 V7의 `(created_at DESC, id DESC)`, `(category, created_at DESC, id DESC)` 인덱스를 유지합니다.
 
@@ -284,8 +299,23 @@ V7의 `(created_at DESC, id DESC)`, `(category, created_at DESC, id DESC)` 인�
 생성 시각을 소급 지정해 경계보다 오래된 글을 추가하면 이후 목록에 포함될 수 있습니다.
 본문 편집은 createdAt을 변경하지 않으므로 정렬에 영향을 주지 않습니다.
 
-앞으로 작성자 필터를 추가한다면 PostListQuery·PostCursor와 저장소 조건을 함께 확장하고
-토큰 버전을 관리해야 합니다. 조건 조합이 많아지면 전용 검색 저장소를 검토합니다.
+V8은 PostgreSQL의 pg_trgm 확장과 `GIN(title gin_trgm_ops)` 인덱스를 추가합니다.
+일반 B-tree가 효율적으로 처리하지 못하는 `ILIKE '%검색어%'`를 기존 부분 일치 의미 그대로 가속합니다.
+V9은 `(member_id, created_at DESC, id DESC)`와 `(member_id, category, created_at DESC, id DESC)` 인덱스를 추가합니다.
+기존 단일 member_id 인덱스는 외래 키 검사용으로 유지합니다.
+
+인덱스가 있어도 모든 쿼리에서 인덱스 선택을 강제하지 않습니다. 작은 테이블, 매우 흔한 검색어,
+trigram을 추출할 수 없는 1~2자 또는 특수문자 위주 검색은 순차·전체 인덱스 스캔이 더 유리하거나 필요할 수 있습니다.
+기존 짧은 검색어·특수문자 검색을 계속 허용하며, GIN의 저장 공간·쓰기 비용이 추가됩니다.
+[PostgreSQL pg_trgm 문서](https://www.postgresql.org/docs/current/pgtrgm.html)의 제약을 따릅니다.
+
+`PostCursorQueryPlanTest`는 10만 건에서 일부 글만 매칭되는 영어·한글 검색어로 실제 Hibernate SQL을 실행합니다.
+GIN 인덱스를 트랜잭션 안에서 제거한 기준선을 측정하고 DDL을 롤백한 뒤 같은 SQL을 다시 실행합니다.
+인덱스 없이 10만 행 검사, GIN 사용 시 100행 이하 검사라는 동작을 실행 시간·강제 플래너 설정 없이 검증합니다.
+별도로 작성자·카테고리 커서 쿼리의 복합 인덱스 경계 검색을 검증합니다.
+
+앞으로 다른 게시글 검색 조건을 추가한다면 PostListQuery·PostCursor·목록 프래그먼트를 함께 확장하고
+커서 버전과 적절한 인덱스를 검토합니다. 전역이나 회원 도메인에 게시글 검색 정책을 추가하지 않습니다.
 현재는 게시글 전용 조회 계약만 두며 다른 도메인에 범용 커서 프레임워크를 미리 도입하지 않습니다.
 
 ## 조회수

@@ -43,7 +43,7 @@ public class PostQueryController {
   @Operation(
       summary = "게시글 목록 조회",
       description =
-          "생성일·ID 내림차순으로 조회합니다. 첫 요청은 cursor를 생략하고 이후 응답의 nextCursor를 그대로 전달합니다. size 기본값은 20이며 1~100입니다. category를 바꾸면 cursor를 생략하고 다시 시작합니다. data.items가 목록이며 마지막 목록은 hasNext=false, nextCursor=null입니다.")
+          "생성일·ID 내림차순으로 조회합니다. 첫 요청은 cursor를 생략하고 이후 응답의 nextCursor를 그대로 전달합니다. size 기본값은 20이며 1~100입니다. keyword는 대소문자를 구분하지 않는 제목 부분 일치 검색입니다. 빈 검색어는 전체 목록이며 authorId는 작성자 회원 ID 필터입니다. authorId, category 또는 keyword를 바꾸면 cursor를 생략하고 다시 시작합니다. data.items가 목록이며 마지막 목록은 hasNext=false, nextCursor=null입니다.")
   @ApiResponse(responseCode = "200", description = "게시글 목록 조회 성공")
   @ApiResponse(responseCode = "400", ref = "#/components/responses/PostListBadRequest")
   @GetMapping
@@ -56,10 +56,20 @@ public class PostQueryController {
           int size,
       @Parameter(description = "조회할 카테고리 (생략 시 전체)")
           @RequestParam(name = "category", required = false)
-          PostCategory category) {
+          PostCategory category,
+      @Parameter(description = "제목 검색어. 앞뒤 공백 제거, 최대 200자, %와 _도 일반 문자로 검색", example = "스프링")
+          @RequestParam(name = "keyword", required = false)
+          String keyword,
+      @Parameter(description = "작성자 회원 ID. 양수이며 생략하면 전체 작성자", example = "1")
+          @RequestParam(name = "authorId", required = false)
+          Long authorId) {
     var query =
         new PostListQuery(
-            PostCursorCodec.decode(cursor), size, category == null ? null : category.toDomain());
+            PostCursorCodec.decode(cursor),
+            size,
+            category == null ? null : category.toDomain(),
+            keyword,
+            authorId);
     return BaseResponse.success(PostListResponse.from(useCase.getPosts(query)), "게시글 목록을 조회했습니다.");
   }
 

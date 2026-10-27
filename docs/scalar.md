@@ -52,7 +52,7 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 | POST | `/members` | 회원 생성 | 201 |
 | DELETE | `/members/{id}` | 회원 소프트 삭제·게시글 보존 | 200 |
 | POST | `/posts` | 게시글 생성 | 201 |
-| GET | `/posts` | cursor·size 무한 스크롤과 선택적 category 필터, 생성일 내림차순·동일 생성일은 ID 내림차순 | 200 |
+| GET | `/posts` | cursor·size 무한 스크롤, authorId·category 필터·keyword 제목 검색, 생성일 내림차순·동일 생성일은 ID 내림차순 | 200 |
 | GET | `/posts/{id}` | 단건 조회 | 200 |
 | HEAD | `/posts/{id}` | 조회수 증가 없이 응답 헤더 확인. 본문 없음 | 200 |
 | PUT | `/posts/{id}` | 제목·본문 수정 | 200 |
@@ -70,8 +70,16 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 - 목록 조회는 cursor를 생략하면 첫 묶음이며 size 기본값은 20, 허용 범위는 1~100이다.
   category를 생략하거나 비우면 전체 분류다. 생성일·ID 내림차순으로 정렬한다.
   data.items를 누적하고 hasNext=true일 때만 nextCursor를 cursor로 전달한다.
-  마지막 묶음은 hasNext=false, nextCursor=null이다. 카테고리를 변경하면 커서를 초기화한다.
-  page 번호 이동은 제공하지 않는다. 잘못된 커서나 카테고리가 다른 커서는 400 INVALID_CURSOR다.
+  마지막 묶음은 hasNext=false, nextCursor=null이다. 작성자 ID·카테고리·검색어를 변경하면 커서를 초기화한다.
+  page 번호 이동은 제공하지 않는다. 잘못된 커서나 작성자 ID·카테고리·검색어가 다른 커서는 400 INVALID_CURSOR다.
+- keyword는 제목 부분 일치 검색이며 대소문자를 구분하지 않는다. 본문·작성자는 검색하지 않는다.
+  앞뒤 공백을 제거하고 빈 값은 전체 목록으로 처리한다. 최대 200 UTF-16 코드 단위이며 NUL을 거부한다.
+  %·_·!도 일반 문자로 검색한다. 검색어를 바꾸면 cursor를 생략하고 다시 시작한다.
+  예: GET /posts?keyword=스프링&size=20, 다음 요청에는 같은 keyword와 응답의 nextCursor를 보낸다.
+  작성자 필터 없는 비검색 커서는 버전 1, 제목 검색은 버전 2, 작성자 필터를 포함하면 버전 3이다. 기존 커서도 계속 지원한다.
+- authorId는 선택적인 작성자 회원 ID 필터이며 양수만 허용한다. 없는 회원은 빈 목록이고 탈퇴 회원의 기존 글도 검색한다.
+  제목·카테고리·작성자 조건은 모든 조합으로 사용할 수 있다.
+  예: GET /posts?authorId=1&category=GENERAL&keyword=스프링&size=20. 다음 요청에도 같은 필터를 유지한다.
 - 수정은 title·content와 조회 응답에서 읽었던 version을 필수로 전달한다. 작성자·카테고리·작성 시각은 유지한다.
   version 누락·음수는 400이며 버전 불일치나 커밋 시 동시 수정 충돌은 409·CONFLICT이다.
   version은 서버가 관리하고 조회수 증가로는 바뀌지 않는다. 동일 내용 저장은 버전을 증가시키지 않는다.
@@ -95,7 +103,7 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
   실제 응답 계약과 동일한 오류 예시를 생성한다.
 - `post/adapter/in/web/docs/PostOpenApiConfig`: `OpenApiCustomizer`로
   게시글 전용 응답을 추가한다. 전역 설정은 게시글 설정에 의존하지 않는다.
-  - `PostListBadRequest`: 목록의 size 범위 오류, 커서 오류, 숫자·카테고리 형식 오류.
+  - `PostListBadRequest`: 목록의 size 범위 오류, 커서·검색어 오류, 숫자·카테고리 형식 오류.
   - `InvalidPostId`: 단건 조회·삭제의 ID 형식 오류.
   - `PostCreateBadRequest`: 생성의 필수 필드 검증, JSON·카테고리 오류.
   - `PostUpdateBadRequest`: 수정의 제목·본문 검증, ID·JSON 오류.

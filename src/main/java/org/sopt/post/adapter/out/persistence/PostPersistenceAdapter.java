@@ -8,7 +8,6 @@ import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.application.port.out.SavePostPort;
 import org.sopt.post.domain.Post;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -27,17 +26,7 @@ public class PostPersistenceAdapter implements LoadPostPort, SavePostPort {
 
   @Override
   public List<Post> findAll(PostListQuery query) {
-    var pageable = PageRequest.of(0, query.size() + 1);
-    if (query.cursor() != null) {
-      var cursor = query.cursor();
-      return query.category() == null
-          ? postRepository.findAfter(cursor.createdAt(), cursor.id(), pageable)
-          : postRepository.findAfterByCategory(
-              query.category(), cursor.createdAt(), cursor.id(), pageable);
-    }
-    return query.category() == null
-        ? postRepository.findAllByOrderByCreatedAtDescIdDesc(pageable)
-        : postRepository.findAllByCategoryOrderByCreatedAtDescIdDesc(query.category(), pageable);
+    return postRepository.findPosts(query);
   }
 
   @Override

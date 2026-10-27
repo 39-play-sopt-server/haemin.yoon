@@ -78,5 +78,8 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 | 회원 생성·삭제 API | POST /members, DELETE /members/{id}, 소프트 삭제 | MemberHttpApiTest, MemberTest |
 | 게시글의 필수 Member 참조와 작성자 이름 | Post.member, memberId 입력, author 응답, V6 | 회원 HTTP·PostgreSQL 테스트, 목록 쿼리 검증 |
 | 최신순 페이지네이션 | cursor·size 무한 스크롤, createdAt DESC·id DESC, V7 인덱스 | PostListingTest, PostgreSqlPostIntegrationTest |
+| 제목 검색 | keyword 부분 일치·대소문자 무시, 특수문자 리터럴 처리, 카테고리·커서와 조합 | PostTitleSearchTest, PostCursorCodecTest, PostgreSqlPostIntegrationTest |
+| 제목 검색 인덱스 | V8의 pg_trgm GIN, 선택적 검색어의 인덱스 전후 스캔량 검증 | PostCursorQueryPlanTest |
+| 동적 검색 | 작성자 ID·카테고리·제목 조건 조합, V9 복합 인덱스, 커서 필터 일치 | PostDynamicSearchTest, PostgreSqlPostIntegrationTest, PostCursorQueryPlanTest |
 
 [회원 API와 데이터 전환 정책](members.md)을 참고하세요.

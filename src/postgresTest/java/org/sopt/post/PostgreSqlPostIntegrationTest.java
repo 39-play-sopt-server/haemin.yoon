@@ -161,7 +161,7 @@ class PostgreSqlPostIntegrationTest {
       assertEquals(18, connection.getMetaData().getDatabaseMajorVersion());
     }
     assertEquals(
-        List.of("1", "2", "3", "4", "5", "6", "7"),
+        List.of("1", "2", "3", "4", "5", "6", "7", "8", "9"),
         jdbc.queryForList(
             "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank",
             String.class));
@@ -402,7 +402,7 @@ class PostgreSqlPostIntegrationTest {
           .dataSource(DATABASE.getJdbcUrl(), DATABASE.getUsername(), DATABASE.getPassword())
           .defaultSchema(schema)
           .schemas(schema)
-          .locations("classpath:db/migration")
+          .locations("classpath:db/migration", "classpath:db/postgresql")
           .target("3")
           .load()
           .migrate();
@@ -419,9 +419,9 @@ class PostgreSqlPostIntegrationTest {
               .dataSource(DATABASE.getJdbcUrl(), DATABASE.getUsername(), DATABASE.getPassword())
               .defaultSchema(schema)
               .schemas(schema)
-              .locations("classpath:db/migration")
+              .locations("classpath:db/migration", "classpath:db/postgresql")
               .load();
-      assertEquals(4, flyway.migrate().migrationsExecuted);
+      assertEquals(6, flyway.migrate().migrationsExecuted);
       var rows =
           jdbc.queryForList(
               "SELECT title, content, view_count, version, created_at, updated_at FROM "
@@ -469,13 +469,13 @@ class PostgreSqlPostIntegrationTest {
               .dataSource(DATABASE.getJdbcUrl(), DATABASE.getUsername(), DATABASE.getPassword())
               .defaultSchema(schema)
               .schemas(schema)
-              .locations("classpath:db/migration")
+              .locations("classpath:db/migration", "classpath:db/postgresql")
               .baselineVersion("1")
               .baselineOnMigrate(false)
               .load();
       assertThrows(FlywayException.class, flyway::migrate);
       flyway.baseline();
-      assertEquals(6, flyway.migrate().migrationsExecuted);
+      assertEquals(8, flyway.migrate().migrationsExecuted);
       flyway.validate();
       try (var rows =
           statement.executeQuery(
@@ -490,7 +490,8 @@ class PostgreSqlPostIntegrationTest {
         assertFalse(rows.next());
       }
       assertEquals(
-          List.of("BASELINE:1", "SQL:2", "SQL:3", "SQL:4", "SQL:5", "SQL:6", "SQL:7"),
+          List.of(
+              "BASELINE:1", "SQL:2", "SQL:3", "SQL:4", "SQL:5", "SQL:6", "SQL:7", "SQL:8", "SQL:9"),
           jdbc.queryForList(
               "SELECT type || ':' || version FROM "
                   + schema
@@ -549,7 +550,7 @@ class PostgreSqlPostIntegrationTest {
           .dataSource(DATABASE.getJdbcUrl(), DATABASE.getUsername(), DATABASE.getPassword())
           .defaultSchema(schema)
           .schemas(schema)
-          .locations("classpath:db/migration")
+          .locations("classpath:db/migration", "classpath:db/postgresql")
           .target("5")
           .load()
           .migrate();
@@ -565,7 +566,7 @@ class PostgreSqlPostIntegrationTest {
               .dataSource(DATABASE.getJdbcUrl(), DATABASE.getUsername(), DATABASE.getPassword())
               .defaultSchema(schema)
               .schemas(schema)
-              .locations("classpath:db/migration")
+              .locations("classpath:db/migration", "classpath:db/postgresql")
               .target("6")
               .load();
       assertEquals(1, flyway.migrate().migrationsExecuted);
@@ -655,10 +656,75 @@ class PostgreSqlPostIntegrationTest {
     assertFalse(last.get("hasNext").booleanValue());
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"스프링", "sPrInG", "%", "_", "!", "\\", "|", "'", "100%_!|"})
+  void searchesLiteralTitlesAndContinuesFilteredScrollInPostgreSql(String keyword)
+      throws Exception {
+    String literal = keyword.toUpperCase(java.util.Locale.ROOT);
+    commands.createPost("첫 " + literal, "본문", Category.GENERAL, 1L);
+    commands.createPost("제목 검색 대상 아님", keyword, Category.GENERAL, 1L);
+    commands.createPost("둘 " + literal, "본문", Category.GENERAL, 1L);
+    commands.createPost("질문 " + literal, "본문", Category.QUESTION, 1L);
+    commands.createPost("셋 " + literal, "본문", Category.GENERAL, 1L);
+    jdbc.update("UPDATE posts SET created_at = TIMESTAMP '2026-01-02 00:00:00.123456'");
+    var first = scroll(null, "GENERAL", keyword);
+    assertEquals(2, first.get("items").size());
+    assertEquals("셋 " + literal, first.get("items").get(0).get("title").stringValue());
+    assertEquals("둘 " + literal, first.get("items").get(1).get("title").stringValue());
+    assertTrue(first.get("hasNext").booleanValue());
+    var last = scroll(first.get("nextCursor").stringValue(), "GENERAL", keyword);
+    assertEquals(1, last.get("items").size());
+    assertEquals("첫 " + literal, last.get("items").get(0).get("title").stringValue());
+    assertFalse(last.get("hasNext").booleanValue());
+    assertTrue(last.get("nextCursor").isNull());
+    assertEquals(0L, jdbc.queryForObject("SELECT SUM(view_count) FROM posts", Long.class));
+    mvc.perform(
+            get("/posts")
+                .param("cursor", first.get("nextCursor").stringValue())
+                .param("category", "GENERAL")
+                .param("keyword", "다른 검색어"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void combinesAuthorCategoryAndTitleWithCursorInPostgreSql() throws Exception {
+    long another = memberId("작성자");
+    for (int i = 0; i < 3; i++) {
+      commands.createPost("Spring A" + i, "본문", Category.GENERAL, 1L);
+      commands.createPost("Spring B" + i, "본문", Category.GENERAL, another);
+      commands.createPost("Spring 질문" + i, "본문", Category.QUESTION, 1L);
+    }
+    jdbc.update("UPDATE posts SET created_at = TIMESTAMP '2026-01-01 00:00:00.123456'");
+    String cursor = null;
+    for (int i = 2; i >= 0; i--) {
+      var request =
+          get("/posts")
+              .param("size", "1")
+              .param("authorId", "1")
+              .param("category", "GENERAL")
+              .param("keyword", "spring");
+      if (cursor != null) request.param("cursor", cursor);
+      var response = mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse();
+      var data = json.readTree(response.getContentAsString()).get("data");
+      assertEquals(1, data.get("items").size());
+      assertEquals("Spring A" + i, data.get("items").get(0).get("title").stringValue());
+      if (i > 0) cursor = data.get("nextCursor").stringValue();
+      else assertFalse(data.get("hasNext").booleanValue());
+    }
+    memberCommands.deleteMember(1L);
+    mvc.perform(get("/posts").param("authorId", "1")).andExpect(status().isOk());
+  }
+
   private tools.jackson.databind.JsonNode scroll(String cursor, String category) throws Exception {
+    return scroll(cursor, category, null);
+  }
+
+  private tools.jackson.databind.JsonNode scroll(String cursor, String category, String keyword)
+      throws Exception {
     var request = get("/posts").param("size", "2");
     if (cursor != null) request.param("cursor", cursor);
     if (category != null) request.param("category", category);
+    if (keyword != null) request.param("keyword", keyword);
     var response = mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse();
     return json.readTree(response.getContentAsString()).get("data");
   }

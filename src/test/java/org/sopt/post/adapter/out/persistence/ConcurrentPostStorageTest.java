@@ -26,7 +26,7 @@ class ConcurrentPostStorageTest {
     var queries = new org.sopt.post.application.service.query.PostQueryService(repository);
     org.sopt.post.application.port.in.query.PostCursor cursor = null;
     do {
-      var result = queries.getPosts(new PostListQuery(cursor, 100, null));
+      var result = queries.getPosts(new PostListQuery(cursor, 100, null, null, null));
       posts.addAll(result.posts());
       cursor = result.nextCursor();
     } while (cursor != null);

@@ -88,7 +88,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.code").value("SUCCESS"));
-    long id = repository.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
+    long id = repository.findAll(new PostListQuery(null, 100, null, null, null)).getFirst().getId();
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.items.length()").value(1))
@@ -187,7 +187,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
         {"title":"기존 제목","content":"기존 본문","category":"GENERAL","memberId":1}
         """))
         .andExpect(status().isCreated());
-    long id = repository.findAll(new PostListQuery(null, 100, null)).getFirst().getId();
+    long id = repository.findAll(new PostListQuery(null, 100, null, null, null)).getFirst().getId();
     mvc.perform(
             put("/posts/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)

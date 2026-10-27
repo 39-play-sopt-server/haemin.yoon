@@ -61,9 +61,12 @@ public class PostOpenApiConfig {
     Map<String, BaseResponse<Void>> examples = new LinkedHashMap<>();
     examples.put("InvalidPagination", BaseResponse.failure(PostErrorCode.INVALID_PAGINATION));
     examples.put("InvalidRequest", BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));
+    examples.put("InvalidAuthorId", BaseResponse.failure(PostErrorCode.INVALID_AUTHOR_ID));
     examples.put("InvalidCursor", BaseResponse.failure(PostErrorCode.INVALID_CURSOR));
+    examples.put(
+        "InvalidSearchKeyword", BaseResponse.failure(PostErrorCode.INVALID_SEARCH_KEYWORD));
     return OpenApiResponses.errorResponses(
-        "size는 1~100이어야 합니다(INVALID_PAGINATION). 잘못된 커서 또는 카테고리가 다른 커서는 INVALID_CURSOR입니다. "
+        "size는 1~100이어야 합니다(INVALID_PAGINATION). authorId는 양수여야 합니다(INVALID_AUTHOR_ID). 잘못된 커서 또는 작성자 ID·카테고리·검색어가 다른 커서는 INVALID_CURSOR입니다. 검색어는 앞뒤 공백 제거 후 최대 200자이며 NUL을 포함할 수 없습니다(INVALID_SEARCH_KEYWORD). "
             + "정수가 아닌 size, int 범위를 벗어나는 숫자 또는 허용되지 않은 category는 INVALID_REQUEST를 반환합니다.",
         examples);
   }

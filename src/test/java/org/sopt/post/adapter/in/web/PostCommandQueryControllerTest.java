@@ -66,7 +66,7 @@ class PostCommandQueryControllerTest extends MemberUnitSupport {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value(code))
         .andExpect(jsonPath("$.data").isEmpty());
-    assertTrue(queries.getPosts(null, 100, null).data().items().isEmpty());
+    assertTrue(queries.getPosts(null, 100, null, null, null).data().items().isEmpty());
   }
 
   @Test
@@ -95,7 +95,7 @@ class PostCommandQueryControllerTest extends MemberUnitSupport {
   void responseSnapshotsRemainUnchangedAfterHttpMutations() throws Exception {
     createPost();
     var original = queries.getPost(1).getBody().data();
-    var list = queries.getPosts(null, 100, null).data().items();
+    var list = queries.getPosts(null, 100, null, null, null).data().items();
     assertThrows(UnsupportedOperationException.class, list::clear);
     mvc.perform(
             put("/posts/1")

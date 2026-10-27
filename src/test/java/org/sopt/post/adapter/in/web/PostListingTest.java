@@ -197,7 +197,7 @@ class PostListingTest extends MemberDatabaseSupport {
         Arguments.of("size", "2147483648", "INVALID_REQUEST"),
         Arguments.of("cursor", "%%%", "INVALID_CURSOR"),
         Arguments.of("cursor", " ", "INVALID_CURSOR"),
-        Arguments.of("cursor", "a".repeat(161), "INVALID_CURSOR"),
+        Arguments.of("cursor", "a".repeat(2049), "INVALID_CURSOR"),
         Arguments.of("category", "UNKNOWN", "INVALID_REQUEST"),
         Arguments.of("category", "general", "INVALID_REQUEST"));
   }

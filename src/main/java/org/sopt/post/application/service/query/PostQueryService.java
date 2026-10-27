@@ -29,7 +29,13 @@ public class PostQueryService implements PostQueryUseCase {
     PostCursor nextCursor = null;
     if (hasNext) {
       Post last = posts.getLast();
-      nextCursor = new PostCursor(last.getCreatedAt(), last.getId(), query.category());
+      nextCursor =
+          new PostCursor(
+              last.getCreatedAt(),
+              last.getId(),
+              query.category(),
+              query.keyword(),
+              query.authorId());
     }
     return new PostListResult(posts, hasNext, nextCursor);
   }

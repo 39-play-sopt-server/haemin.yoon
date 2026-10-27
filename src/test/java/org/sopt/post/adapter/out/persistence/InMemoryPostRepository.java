@@ -37,7 +37,15 @@ public class InMemoryPostRepository implements LoadPostPort, SavePostPort {
     List<Post> result = new ArrayList<>(posts.values());
     result.sort(Comparator.comparing(Post::getCreatedAt).thenComparingLong(Post::getId).reversed());
     return result.stream()
+        .filter(
+            post -> query.authorId() == null || query.authorId().equals(post.getMember().getId()))
         .filter(post -> query.category() == null || post.getCategory() == query.category())
+        .filter(
+            post ->
+                query.keyword() == null
+                    || post.getTitle()
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains(query.keyword().toLowerCase(java.util.Locale.ROOT)))
         .filter(
             post ->
                 query.cursor() == null
