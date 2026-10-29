@@ -3,7 +3,7 @@ package org.sopt.post.application.service.command;
 import lombok.RequiredArgsConstructor;
 import org.sopt.member.application.port.in.query.MemberQueryUseCase;
 import org.sopt.post.application.port.in.command.PostLikeCommandUseCase;
-import org.sopt.post.application.port.in.command.PostLikeResult;
+import org.sopt.post.application.port.in.command.dto.PostLikeResult;
 import org.sopt.post.application.port.out.LoadPostLikePort;
 import org.sopt.post.application.port.out.SavePostLikePort;
 import org.sopt.post.domain.PostLike;

@@ -8,8 +8,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
-import org.sopt.post.application.port.in.query.PostInfo;
-import org.sopt.post.application.port.in.query.PostListQuery;
+import org.sopt.post.application.port.in.query.dto.PostInfo;
+import org.sopt.post.application.port.in.query.dto.PostListQuery;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
 
@@ -25,7 +25,7 @@ class ConcurrentPostStorageTest {
         });
     var posts = new ArrayList<PostInfo>();
     var queries = new org.sopt.post.application.service.query.PostQueryService(repository);
-    org.sopt.post.application.port.in.query.PostCursor cursor = null;
+    org.sopt.post.application.port.in.query.dto.PostCursor cursor = null;
     do {
       var result = queries.getPosts(new PostListQuery(cursor, 100, null, null, null));
       posts.addAll(result.posts());

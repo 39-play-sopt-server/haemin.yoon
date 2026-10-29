@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
-import org.sopt.post.application.port.in.query.PostInfo;
-import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
+import org.sopt.post.application.port.in.query.dto.PostInfo;
+import org.sopt.post.application.port.in.query.dto.PostListQuery;
 import org.sopt.post.domain.Category;
 import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,9 +46,10 @@ class PostFacadeTransactionTest extends MemberDatabaseSupport {
     PostQueryUseCase failingQuery(JdbcTemplate jdbc) {
       return new PostQueryUseCase() {
         @Override
-        public org.sopt.post.application.port.in.query.PostListResult getPosts(
+        public org.sopt.post.application.port.in.query.dto.PostListResult getPosts(
             PostListQuery query) {
-          return new org.sopt.post.application.port.in.query.PostListResult(List.of(), false, null);
+          return new org.sopt.post.application.port.in.query.dto.PostListResult(
+              List.of(), false, null);
         }
 
         @Override

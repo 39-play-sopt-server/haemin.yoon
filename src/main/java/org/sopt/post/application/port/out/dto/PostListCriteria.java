@@ -1,4 +1,4 @@
-package org.sopt.post.application.port.out;
+package org.sopt.post.application.port.out.dto;
 
 import java.time.LocalDateTime;
 import org.sopt.post.domain.Category;

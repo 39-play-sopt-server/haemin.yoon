@@ -1,7 +1,7 @@
 package org.sopt.member.application.service.query;
 
 import lombok.RequiredArgsConstructor;
-import org.sopt.member.application.port.in.MemberInfo;
+import org.sopt.member.application.port.in.dto.MemberInfo;
 import org.sopt.member.application.port.in.query.MemberQueryUseCase;
 import org.sopt.member.application.port.out.LoadMemberPort;
 import org.sopt.member.domain.exception.MemberErrorCode;

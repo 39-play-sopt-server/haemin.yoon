@@ -1,6 +1,7 @@
-package org.sopt.post.application.port.in.query;
+package org.sopt.post.application.port.in.query.dto;
 
 import java.time.LocalDateTime;
+import org.sopt.post.application.port.in.query.PostSearchKeyword;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;

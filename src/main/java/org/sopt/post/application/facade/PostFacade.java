@@ -2,8 +2,8 @@ package org.sopt.post.application.facade;
 
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.application.port.in.query.PostDetailQueryUseCase;
-import org.sopt.post.application.port.in.query.PostInfo;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
+import org.sopt.post.application.port.in.query.dto.PostInfo;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

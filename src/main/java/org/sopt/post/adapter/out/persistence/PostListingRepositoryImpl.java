@@ -4,7 +4,7 @@ import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.sopt.post.application.port.out.PostListCriteria;
+import org.sopt.post.application.port.out.dto.PostListCriteria;
 import org.sopt.post.domain.Post;
 
 /** 사용자 입력은 파라미터로 바인딩하고 실제로 전달된 검색 조건만 쿼리에 추가합니다. */

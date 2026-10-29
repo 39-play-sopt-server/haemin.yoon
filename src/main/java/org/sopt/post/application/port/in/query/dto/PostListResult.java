@@ -1,4 +1,4 @@
-package org.sopt.post.application.port.in.query;
+package org.sopt.post.application.port.in.query.dto;
 
 import java.util.List;
 

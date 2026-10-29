@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import org.sopt.post.adapter.in.web.dto.PostCursorCodec;
-import org.sopt.post.application.port.in.query.PostListResult;
+import org.sopt.post.application.port.in.query.dto.PostListResult;
 
 @JsonInclude(JsonInclude.Include.ALWAYS)
 public record PostListResponse(

@@ -13,7 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.application.port.out.LoadPostPort;
-import org.sopt.post.application.port.out.PostListCriteria;
+import org.sopt.post.application.port.out.dto.PostListCriteria;
 import org.sopt.post.domain.Category;
 import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -9,8 +9,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.sopt.post.application.port.out.LoadPostPort;
-import org.sopt.post.application.port.out.PostListCriteria;
 import org.sopt.post.application.port.out.SavePostPort;
+import org.sopt.post.application.port.out.dto.PostListCriteria;
 import org.sopt.post.domain.Post;
 import org.springframework.test.util.ReflectionTestUtils;
 

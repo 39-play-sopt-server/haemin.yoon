@@ -1,12 +1,12 @@
 package org.sopt.post.application.service.query;
 
-import org.sopt.post.application.port.in.query.PostCursor;
-import org.sopt.post.application.port.in.query.PostInfo;
-import org.sopt.post.application.port.in.query.PostListQuery;
-import org.sopt.post.application.port.in.query.PostListResult;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
+import org.sopt.post.application.port.in.query.dto.PostCursor;
+import org.sopt.post.application.port.in.query.dto.PostInfo;
+import org.sopt.post.application.port.in.query.dto.PostListQuery;
+import org.sopt.post.application.port.in.query.dto.PostListResult;
 import org.sopt.post.application.port.out.LoadPostPort;
-import org.sopt.post.application.port.out.PostListCriteria;
+import org.sopt.post.application.port.out.dto.PostListCriteria;
 import org.sopt.post.domain.Post;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;

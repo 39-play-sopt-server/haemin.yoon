@@ -1,5 +1,7 @@
 package org.sopt.post.application.port.in.command;
 
+import org.sopt.post.application.port.in.command.dto.PostLikeResult;
+
 public interface PostLikeCommandUseCase {
   PostLikeResult like(long postId, long memberId);
 

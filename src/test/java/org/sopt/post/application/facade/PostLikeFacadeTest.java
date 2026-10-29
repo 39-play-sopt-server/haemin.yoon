@@ -5,7 +5,7 @@ import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.Test;
 import org.sopt.post.application.port.in.command.PostLikeCommandUseCase;
-import org.sopt.post.application.port.in.command.PostLikeResult;
+import org.sopt.post.application.port.in.command.dto.PostLikeResult;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 import org.springframework.dao.CannotAcquireLockException;

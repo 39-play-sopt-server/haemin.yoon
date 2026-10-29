@@ -10,8 +10,8 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.adapter.out.persistence.InMemoryPostRepository;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
-import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
+import org.sopt.post.application.port.in.query.dto.PostListQuery;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
 import org.sopt.post.domain.Category;
@@ -33,7 +33,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     assertEquals(
         java.util.List.of("글2", "글1"),
         first.posts().stream()
-            .map(org.sopt.post.application.port.in.query.PostInfo::title)
+            .map(org.sopt.post.application.port.in.query.dto.PostInfo::title)
             .toList());
     assertTrue(first.hasNext());
     assertEquals(first.posts().getLast().id(), first.nextCursor().id());
@@ -41,7 +41,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     assertEquals(
         java.util.List.of("글0"),
         last.posts().stream()
-            .map(org.sopt.post.application.port.in.query.PostInfo::title)
+            .map(org.sopt.post.application.port.in.query.dto.PostInfo::title)
             .toList());
     assertFalse(last.hasNext());
     assertNull(last.nextCursor());
@@ -51,7 +51,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
   @Test
   void validatesSearchScopeForNonHttpCallers() {
     var cursor =
-        new org.sopt.post.application.port.in.query.PostCursor(
+        new org.sopt.post.application.port.in.query.dto.PostCursor(
             LocalDateTime.of(2026, 1, 1, 0, 0), 1L, null, "검색", null);
     var normalized = new PostListQuery(cursor, 20, null, " 검색 ", null);
     assertEquals("검색", normalized.keyword());

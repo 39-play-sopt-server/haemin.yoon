@@ -1,8 +1,8 @@
 package org.sopt.member.application.service.command;
 
 import lombok.RequiredArgsConstructor;
-import org.sopt.member.application.port.in.MemberInfo;
 import org.sopt.member.application.port.in.command.MemberCommandUseCase;
+import org.sopt.member.application.port.in.dto.MemberInfo;
 import org.sopt.member.application.port.out.LoadMemberPort;
 import org.sopt.member.application.port.out.SaveMemberPort;
 import org.sopt.member.domain.Member;

@@ -15,7 +15,7 @@ import org.sopt.post.adapter.in.web.dto.PostCategory;
 import org.sopt.post.adapter.in.web.dto.request.CreatePostRequest;
 import org.sopt.post.adapter.out.persistence.InMemoryPostRepository;
 import org.sopt.post.application.facade.PostFacade;
-import org.sopt.post.application.port.in.query.PostListQuery;
+import org.sopt.post.application.port.in.query.dto.PostListQuery;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
 import org.sopt.support.MemberUnitSupport;
@@ -116,7 +116,7 @@ class PostCommandQueryControllerTest extends MemberUnitSupport {
     var service =
         new PostQueryService(failingRepository) {
           @Override
-          public org.sopt.post.application.port.in.query.PostListResult getPosts(
+          public org.sopt.post.application.port.in.query.dto.PostListResult getPosts(
               PostListQuery query) {
             throw new IllegalStateException("internal secret details");
           }

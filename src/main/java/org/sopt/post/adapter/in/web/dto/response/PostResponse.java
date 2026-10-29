@@ -3,7 +3,7 @@ package org.sopt.post.adapter.in.web.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import org.sopt.post.adapter.in.web.dto.PostCategory;
-import org.sopt.post.application.port.in.query.PostInfo;
+import org.sopt.post.application.port.in.query.dto.PostInfo;
 
 /**
  * 클라이언트에 공개하는 게시글 조회 결과로, 내부 도메인 대신 전달하는 불변 스냅샷입니다. 외부용 카테고리와 표시할 메타데이터를 포함하며, 이후 서버 수정·삭제로 이전 응답이

@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import org.sopt.post.application.port.in.query.PostCursor;
+import org.sopt.post.application.port.in.query.dto.PostCursor;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 

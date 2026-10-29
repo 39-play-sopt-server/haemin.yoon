@@ -1,7 +1,7 @@
 package org.sopt.member.adapter.in.web.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import org.sopt.member.application.port.in.MemberInfo;
+import org.sopt.member.application.port.in.dto.MemberInfo;
 
 public record MemberResponse(
     @Schema(description = "게시글 생성 시 memberId로 전달할 회원 ID", example = "1") long id,
