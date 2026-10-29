@@ -102,7 +102,7 @@ V4는 기존 본문과 조회수를 보존한다. 구버전 쓰기 서버와의 
 - 테스트 프로필도 `ddl-auto: validate`를 사용한다. Flyway가 테이블을 생성해야
   기존 게시글 저장·조회 테스트가 실행된다.
 - `FlywayMigrationTest`는 기존 테이블의 자동 등록 거부와 명시적 baseline 후
-  기존 게시글 보존, V1 생략, V2 적용 후 조회수 0과 V3~V9 적용 이력·편집 버전 0을 H2 PostgreSQL 모드에서 검증한다.
+  기존 게시글 보존, V1 생략, V2 적용 후 조회수 0과 V3~V10 적용 이력·편집 버전 0·좋아요 수 0을 H2 PostgreSQL 모드에서 검증한다.
 - H2 검증은 실제 PostgreSQL 검증을 대체하지 않는다.
 - `./gradlew postgresTest`는 임시 PostgreSQL에서 빈 DB 마이그레이션과 명시적 baseline 이후
   기존 데이터 보존·V2~V10 적용·V3 데이터의 V4 전환·재실행 시 추가 적용 없음까지 검증한다.
