@@ -1,10 +1,12 @@
 package org.sopt.post.application.service.query;
 
 import org.sopt.post.application.port.in.query.PostCursor;
+import org.sopt.post.application.port.in.query.PostInfo;
 import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.in.query.PostListResult;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.application.port.out.LoadPostPort;
+import org.sopt.post.application.port.out.PostListCriteria;
 import org.sopt.post.domain.Post;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
@@ -23,7 +25,15 @@ public class PostQueryService implements PostQueryUseCase {
 
   @Override
   public PostListResult getPosts(PostListQuery query) {
-    var candidates = loadPostPort.findAll(query);
+    var candidates =
+        loadPostPort.findAll(
+            new PostListCriteria(
+                query.cursor() == null ? null : query.cursor().createdAt(),
+                query.cursor() == null ? null : query.cursor().id(),
+                query.size(),
+                query.category(),
+                query.keyword(),
+                query.authorId()));
     boolean hasNext = candidates.size() > query.size();
     var posts = candidates.stream().limit(query.size()).toList();
     PostCursor nextCursor = null;
@@ -37,13 +47,29 @@ public class PostQueryService implements PostQueryUseCase {
               query.keyword(),
               query.authorId());
     }
-    return new PostListResult(posts, hasNext, nextCursor);
+    return new PostListResult(posts.stream().map(this::toInfo).toList(), hasNext, nextCursor);
   }
 
   @Override
-  public Post getPost(long id) {
+  public PostInfo getPost(long id) {
     return loadPostPort
         .findById(id)
+        .map(this::toInfo)
         .orElseThrow(() -> new PostException(PostErrorCode.POST_NOT_FOUND));
+  }
+
+  private PostInfo toInfo(Post post) {
+    return new PostInfo(
+        post.getId(),
+        post.getTitle(),
+        post.getContent(),
+        post.getCategory(),
+        post.getAuthorMemberId(),
+        post.getAuthorName(),
+        post.getCreatedAt(),
+        post.getUpdatedAt(),
+        post.getViewCount(),
+        post.getVersion(),
+        post.getLikeCount());
   }
 }

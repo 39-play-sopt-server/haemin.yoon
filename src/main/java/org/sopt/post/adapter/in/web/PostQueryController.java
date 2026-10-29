@@ -12,7 +12,7 @@ import org.sopt.post.adapter.in.web.dto.PostCategory;
 import org.sopt.post.adapter.in.web.dto.PostCursorCodec;
 import org.sopt.post.adapter.in.web.dto.response.PostListResponse;
 import org.sopt.post.adapter.in.web.dto.response.PostResponse;
-import org.sopt.post.application.facade.PostFacade;
+import org.sopt.post.application.port.in.query.PostDetailQueryUseCase;
 import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.springframework.http.CacheControl;
@@ -26,18 +26,18 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 목록은 Query 입력 포트에, 상세 열람은 Facade에 전달하고 불변 DTO로 응답합니다. */
+/** 목록과 상세 열람을 각각의 Query 입력 포트에 전달하고 불변 DTO로 응답합니다. */
 @Tag(name = "게시글", description = "게시글 생성·조회·수정·삭제")
 @ApiResponse(responseCode = "500", ref = "#/components/responses/InternalServerError")
 @RestController
 @RequestMapping(value = "/posts", produces = MediaType.APPLICATION_JSON_VALUE)
 public class PostQueryController {
   private final PostQueryUseCase useCase;
-  private final PostFacade facade;
+  private final PostDetailQueryUseCase detailQueries;
 
-  public PostQueryController(PostQueryUseCase useCase, PostFacade facade) {
+  public PostQueryController(PostQueryUseCase useCase, PostDetailQueryUseCase detailQueries) {
     this.useCase = useCase;
-    this.facade = facade;
+    this.detailQueries = detailQueries;
   }
 
   @Operation(
@@ -91,7 +91,9 @@ public class PostQueryController {
       @Parameter(description = "게시글 ID", example = "1") @PathVariable("id") long id) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
-        .body(BaseResponse.success(PostResponse.from(facade.getPostDetail(id)), "게시글을 조회했습니다."));
+        .body(
+            BaseResponse.success(
+                PostResponse.from(detailQueries.getPostDetail(id)), "게시글을 조회했습니다."));
   }
 
   @Operation(summary = "게시글 응답 헤더 조회", description = "조회수를 증가시키지 않고 게시글을 확인합니다. 응답 본문은 전송하지 않습니다.")

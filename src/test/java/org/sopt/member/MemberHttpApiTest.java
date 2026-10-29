@@ -154,7 +154,7 @@ class MemberHttpApiTest extends MemberDatabaseSupport {
   void allowsSameNameForDifferentMembers() throws Exception {
     var first = memberCommands.createMember("동명이인");
     var second = memberCommands.createMember("동명이인");
-    assertNotEquals(first.getId(), second.getId());
+    assertNotEquals(first.id(), second.id());
   }
 
   @Test

@@ -21,7 +21,7 @@ class FlywayMigrationTest {
     String url = existingDatabase();
     Flyway flyway = flyway(url);
     flyway.baseline();
-    assertEquals(9, flyway.migrate().migrationsExecuted);
+    assertEquals(10, flyway.migrate().migrationsExecuted);
     flyway.validate();
     assertOriginalPost(url);
     try (var connection = DriverManager.getConnection(url, "sa", "");
@@ -59,6 +59,9 @@ class FlywayMigrationTest {
       assertTrue(rows.next());
       assertEquals("10", rows.getString(1));
       assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("11", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
       assertFalse(rows.next());
     }
     try (var connection = DriverManager.getConnection(url, "sa", "");
@@ -77,9 +80,10 @@ class FlywayMigrationTest {
         var statement = connection.createStatement();
         var rows =
             statement.executeQuery(
-                "SELECT m.name FROM posts p JOIN members m ON m.id = p.member_id")) {
+                "SELECT p.author_name, m.name FROM posts p JOIN members m ON m.id = p.member_id")) {
       assertTrue(rows.next());
       assertEquals("기존 작성자", rows.getString(1));
+      assertEquals(rows.getString(1), rows.getString(2));
     }
     assertEquals(0, flyway.migrate().migrationsExecuted);
   }

@@ -4,16 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import org.sopt.global.entity.BaseEntity;
-import org.sopt.member.domain.Member;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 
@@ -40,9 +36,12 @@ public class Post extends BaseEntity {
   @Column(nullable = false, length = 30)
   private Category category;
 
-  @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "member_id", nullable = false, updatable = false)
-  private Member member;
+  @Column(name = "member_id", nullable = false, updatable = false)
+  private long authorMemberId;
+
+  /** 회원 변경·탈퇴와 무관하게 게시 당시 작성자 이름을 보존합니다. */
+  @Column(name = "author_name", nullable = false, updatable = false, columnDefinition = "text")
+  private String authorName;
 
   /** 조회수는 전용 출력 포트의 원자적 UPDATE로 변경하며 일반 엔티티 수정에서 제외합니다. */
   @Column(name = "view_count", nullable = false, updatable = false)
@@ -61,19 +60,20 @@ public class Post extends BaseEntity {
   protected Post() {}
 
   /** 새 게시글은 ID 없이 생성하고, 저장 시 DB가 ID를 부여합니다. */
-  public Post(String title, String content, Category category, Member member) {
+  public Post(String title, String content, Category category, PostAuthor author) {
     validateTitle(title);
     validateContent(content);
     if (category == null) {
       throw new PostException(PostErrorCode.INVALID_CATEGORY);
     }
-    if (member == null || member.isDeleted()) {
+    if (author == null) {
       throw new PostException(PostErrorCode.INVALID_AUTHOR);
     }
     this.title = title;
     this.content = content;
     this.category = category;
-    this.member = member;
+    this.authorMemberId = author.memberId();
+    this.authorName = author.name();
   }
 
   public Long getId() {
@@ -92,8 +92,12 @@ public class Post extends BaseEntity {
     return category;
   }
 
-  public Member getMember() {
-    return member;
+  public long getAuthorMemberId() {
+    return authorMemberId;
+  }
+
+  public String getAuthorName() {
+    return authorName;
   }
 
   public long getViewCount() {

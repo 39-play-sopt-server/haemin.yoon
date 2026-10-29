@@ -62,7 +62,7 @@ class PostLikeConcurrencyTest {
   void prepare() {
     jdbc.update("DELETE FROM posts");
     jdbc.update("DELETE FROM members");
-    long author = members.createMember("작성자").getId();
+    long author = members.createMember("작성자").id();
     posts.createPost("좋아요", "본문", Category.GENERAL, author);
     postId = jdbc.queryForObject("SELECT id FROM posts", Long.class);
   }
@@ -70,7 +70,7 @@ class PostLikeConcurrencyTest {
   @Test
   void concurrentDistinctMembersDoNotLoseIncrementsOrDecrements() throws Exception {
     var memberIds = new ArrayList<Long>();
-    for (int i = 0; i < 32; i++) memberIds.add(members.createMember("회원" + i).getId());
+    for (int i = 0; i < 32; i++) memberIds.add(members.createMember("회원" + i).id());
     concurrently(32, index -> likes.like(postId, memberIds.get(index)));
     assertCount(32);
     concurrently(32, index -> likes.unlike(postId, memberIds.get(index)));
@@ -79,7 +79,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void concurrentDuplicateRequestsRemainIdempotent() throws Exception {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     concurrently(32, index -> likes.like(postId, memberId));
     assertCount(1);
     concurrently(32, index -> likes.unlike(postId, memberId));
@@ -88,7 +88,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void racingLikeUnlikeAndViewCountRemainConsistent() throws Exception {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     concurrently(
         48,
         index -> {
@@ -110,7 +110,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void failureAfterCounterUpdateRollsBackRelationshipAndCounterBeforeRetry() {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     var transactionIds = new ArrayList<Long>();
     doAnswer(
             invocation -> {
@@ -129,7 +129,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void nonRetryableFailureAfterRelationshipInsertAlsoRollsBack() {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     doAnswer(
             invocation -> {
               throw new DataIntegrityViolationException("카운터 갱신 실패");
@@ -142,7 +142,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void realPostgreSqlDeadlockRollsBackAndRetriesInANewTransaction() throws Exception {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     likes.like(postId, memberId);
     var childLocked = new CountDownLatch(1);
     var parentLocked = new CountDownLatch(1);
@@ -202,7 +202,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void lockQueryTimeoutIsRetriedAndReturnsServiceUnavailableAfterThreeAttempts() throws Exception {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     try (var connection = jdbc.getDataSource().getConnection();
         var statement = connection.createStatement()) {
       connection.setAutoCommit(false);
@@ -222,7 +222,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void relationshipLockTimeoutAfterParentLockRollsBackAndExhaustsRetries() throws Exception {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     likes.like(postId, memberId);
     var parentLocked = new CountDownLatch(1);
     var transactionIds = new ArrayList<Long>();
@@ -267,7 +267,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void relationshipLockTimeoutRetriesSuccessfullyAfterBlockerReleases() throws Exception {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     likes.like(postId, memberId);
     var timeoutObserved = new CountDownLatch(1);
     var transactionIds = new ArrayList<Long>();
@@ -312,7 +312,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void postDeletionAndLikeRequestsCannotLeaveOrphansOrDeadlock() throws Exception {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     likes.like(postId, memberId);
     concurrently(
         8,
@@ -334,7 +334,7 @@ class PostLikeConcurrencyTest {
 
   @Test
   void databaseConstraintsRejectDuplicateLikesAndNegativeCounts() {
-    long memberId = members.createMember("좋아요 회원").getId();
+    long memberId = members.createMember("좋아요 회원").id();
     likes.like(postId, memberId);
     assertThrows(
         DataIntegrityViolationException.class,

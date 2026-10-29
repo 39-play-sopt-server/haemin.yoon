@@ -10,6 +10,6 @@ public interface PostLikeRepository extends JpaRepository<PostLike, Long> {
   boolean existsByPostIdAndMemberId(long postId, long memberId);
 
   @Modifying(flushAutomatically = true)
-  @Query("DELETE FROM PostLike l WHERE l.post.id = :postId AND l.member.id = :memberId")
+  @Query("DELETE FROM PostLike l WHERE l.post.id = :postId AND l.memberId = :memberId")
   int deleteLike(@Param("postId") long postId, @Param("memberId") long memberId);
 }

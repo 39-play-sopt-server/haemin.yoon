@@ -50,13 +50,13 @@ class PostTextValidationTest {
     var post = new Post(text, text, Category.GENERAL, member(text));
     assertEquals(text, post.getTitle());
     assertEquals(text, post.getContent());
-    assertEquals(text, post.getMember().getName());
+    assertEquals(text, post.getAuthorName());
     post.update(text + "수정", text + "수정");
     assertEquals(text + "수정", post.getTitle());
     assertEquals(text + "수정", post.getContent());
   }
 
-  private static org.sopt.member.domain.Member member(String name) {
-    return new org.sopt.member.domain.Member(name);
+  private static PostAuthor member(String name) {
+    return new PostAuthor(1L, name);
   }
 }

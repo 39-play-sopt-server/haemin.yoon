@@ -12,8 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
-import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
+import org.sopt.post.application.port.out.PostListCriteria;
 import org.sopt.post.domain.Category;
 import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,7 +88,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.code").value("SUCCESS"));
-    long id = repository.findAll(new PostListQuery(null, 100, null, null, null)).getFirst().getId();
+    long id = repository.findAll(criteria()).getFirst().getId();
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.items.length()").value(1))
@@ -187,7 +187,7 @@ class PostHttpApiTest extends MemberDatabaseSupport {
         {"title":"기존 제목","content":"기존 본문","category":"GENERAL","memberId":1}
         """))
         .andExpect(status().isCreated());
-    long id = repository.findAll(new PostListQuery(null, 100, null, null, null)).getFirst().getId();
+    long id = repository.findAll(criteria()).getFirst().getId();
     mvc.perform(
             put("/posts/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -358,5 +358,9 @@ class PostHttpApiTest extends MemberDatabaseSupport {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("FORBIDDEN"))
         .andExpect(content().string(not(containsString("internal secret"))));
+  }
+
+  private static PostListCriteria criteria() {
+    return new PostListCriteria(null, null, 100, null, null, null);
   }
 }

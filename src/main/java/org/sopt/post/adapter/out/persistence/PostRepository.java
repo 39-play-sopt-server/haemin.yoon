@@ -22,10 +22,6 @@ public interface PostRepository extends JpaRepository<Post, Long>, PostListingRe
   @Query(value = "UPDATE posts SET like_count = like_count - 1 WHERE id = :id", nativeQuery = true)
   int decreaseLikeCount(@Param("id") long id);
 
-  @Override
-  @Query("SELECT p FROM Post p JOIN FETCH p.member WHERE p.id = :id")
-  Optional<Post> findById(@Param("id") Long id);
-
   @Modifying(flushAutomatically = true)
   @Query(value = "UPDATE posts SET view_count = view_count + 1 WHERE id = :id", nativeQuery = true)
   int incrementViewCount(@Param("id") long id);

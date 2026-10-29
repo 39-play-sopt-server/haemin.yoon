@@ -1,9 +1,9 @@
 package org.sopt.member.application.port.in.command;
 
-import org.sopt.member.domain.Member;
+import org.sopt.member.application.port.in.MemberInfo;
 
 public interface MemberCommandUseCase {
-  Member createMember(String name);
+  MemberInfo createMember(String name);
 
   void deleteMember(long id);
 }

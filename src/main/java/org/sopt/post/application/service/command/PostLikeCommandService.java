@@ -24,11 +24,11 @@ public class PostLikeCommandService implements PostLikeCommandUseCase {
   @Override
   public PostLikeResult like(long postId, long memberId) {
     validateIds(postId, memberId);
-    var member = members.getActiveMember(memberId);
+    members.getActiveMember(memberId);
     var post =
         reader.lockPost(postId).orElseThrow(() -> new PostException(PostErrorCode.POST_NOT_FOUND));
     if (reader.exists(postId, memberId)) return new PostLikeResult(true, post.getLikeCount());
-    writer.save(new PostLike(post, member));
+    writer.save(new PostLike(post, memberId));
     return new PostLikeResult(true, writer.increaseCount(post));
   }
 

@@ -66,7 +66,7 @@ class PostgreSqlPostIntegrationTest {
   @Autowired org.sopt.member.application.port.in.command.MemberCommandUseCase memberCommands;
 
   private long memberId(String name) {
-    return memberCommands.createMember(name).getId();
+    return memberCommands.createMember(name).id();
   }
 
   @Autowired MockMvc mvc;
@@ -161,7 +161,7 @@ class PostgreSqlPostIntegrationTest {
       assertEquals(18, connection.getMetaData().getDatabaseMajorVersion());
     }
     assertEquals(
-        List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"),
+        List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"),
         jdbc.queryForList(
             "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank",
             String.class));
@@ -224,7 +224,7 @@ class PostgreSqlPostIntegrationTest {
                 assertEquals(
                     1,
                     executor
-                        .submit(() -> facade.getPostDetail(id).getViewCount())
+                        .submit(() -> facade.getPostDetail(id).viewCount())
                         .get(15, TimeUnit.SECONDS));
               } catch (Exception exception) {
                 throw new AssertionError(exception);
@@ -252,7 +252,7 @@ class PostgreSqlPostIntegrationTest {
                 assertEquals(
                     1,
                     executor
-                        .submit(() -> facade.getPostDetail(otherId).getViewCount())
+                        .submit(() -> facade.getPostDetail(otherId).viewCount())
                         .get(15, TimeUnit.SECONDS));
               } catch (Exception exception) {
                 throw new AssertionError(exception);
@@ -421,7 +421,7 @@ class PostgreSqlPostIntegrationTest {
               .schemas(schema)
               .locations("classpath:db/migration", "classpath:db/postgresql")
               .load();
-      assertEquals(7, flyway.migrate().migrationsExecuted);
+      assertEquals(8, flyway.migrate().migrationsExecuted);
       var rows =
           jdbc.queryForList(
               "SELECT title, content, view_count, version, created_at, updated_at FROM "
@@ -475,17 +475,18 @@ class PostgreSqlPostIntegrationTest {
               .load();
       assertThrows(FlywayException.class, flyway::migrate);
       flyway.baseline();
-      assertEquals(9, flyway.migrate().migrationsExecuted);
+      assertEquals(10, flyway.migrate().migrationsExecuted);
       flyway.validate();
       try (var rows =
           statement.executeQuery(
-              "SELECT title, content, view_count, version, created_at, updated_at, like_count FROM posts")) {
+              "SELECT title, content, view_count, version, created_at, updated_at, like_count, author_name FROM posts")) {
         assertTrue(rows.next());
         assertEquals("기존 제목", rows.getString("title"));
         assertEquals("기존 본문", rows.getString("content"));
         assertEquals(0, rows.getLong("view_count"));
         assertEquals(0, rows.getLong("version"));
         assertEquals(0, rows.getLong("like_count"));
+        assertEquals("작성자", rows.getString("author_name"));
         assertNotNull(rows.getTimestamp("updated_at"));
         assertEquals(rows.getTimestamp("created_at"), rows.getTimestamp("updated_at"));
         assertFalse(rows.next());
@@ -501,7 +502,8 @@ class PostgreSqlPostIntegrationTest {
               "SQL:7",
               "SQL:8",
               "SQL:9",
-              "SQL:10"),
+              "SQL:10",
+              "SQL:11"),
           jdbc.queryForList(
               "SELECT type || ':' || version FROM "
                   + schema

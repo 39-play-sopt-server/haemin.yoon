@@ -8,6 +8,7 @@ import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.application.port.out.SavePostPort;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
+import org.sopt.post.domain.PostAuthor;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 import org.springframework.stereotype.Service;
@@ -34,7 +35,9 @@ public class PostCommandService implements PostCommandUseCase {
 
   @Override
   public void createPost(String title, String content, Category category, long memberId) {
-    savePostPort.save(new Post(title, content, category, members.getActiveMember(memberId)));
+    var member = members.getActiveMember(memberId);
+    savePostPort.save(
+        new Post(title, content, category, new PostAuthor(member.id(), member.name())));
   }
 
   @Override

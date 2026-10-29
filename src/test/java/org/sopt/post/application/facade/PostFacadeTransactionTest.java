@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
+import org.sopt.post.application.port.in.query.PostInfo;
 import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.domain.Category;
-import org.sopt.post.domain.Post;
 import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -52,7 +52,7 @@ class PostFacadeTransactionTest extends MemberDatabaseSupport {
         }
 
         @Override
-        public Post getPost(long id) {
+        public PostInfo getPost(long id) {
           assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
           assertFalse(TransactionSynchronizationManager.isCurrentTransactionReadOnly());
           assertEquals(

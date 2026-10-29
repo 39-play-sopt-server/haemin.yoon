@@ -8,6 +8,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
+import org.sopt.post.application.port.in.query.PostInfo;
 import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
@@ -22,7 +23,7 @@ class ConcurrentPostStorageTest {
             repository.save(new Post("제목", "본문", Category.GENERAL, member("작성자")));
           }
         });
-    var posts = new ArrayList<Post>();
+    var posts = new ArrayList<PostInfo>();
     var queries = new org.sopt.post.application.service.query.PostQueryService(repository);
     org.sopt.post.application.port.in.query.PostCursor cursor = null;
     do {
@@ -33,13 +34,13 @@ class ConcurrentPostStorageTest {
     assertEquals(8000, posts.size());
     assertEquals(
         java.util.stream.LongStream.rangeClosed(1, 8000).boxed().toList(),
-        posts.stream().map(Post::getId).sorted().toList());
+        posts.stream().map(PostInfo::id).sorted().toList());
     for (int i = 1; i < posts.size(); i++) {
-      Post previous = posts.get(i - 1);
-      Post current = posts.get(i);
-      assertFalse(previous.getCreatedAt().isBefore(current.getCreatedAt()));
-      if (previous.getCreatedAt().equals(current.getCreatedAt())) {
-        assertTrue(previous.getId() > current.getId());
+      PostInfo previous = posts.get(i - 1);
+      PostInfo current = posts.get(i);
+      assertFalse(previous.createdAt().isBefore(current.createdAt()));
+      if (previous.createdAt().equals(current.createdAt())) {
+        assertTrue(previous.id() > current.id());
       }
     }
   }
@@ -64,7 +65,7 @@ class ConcurrentPostStorageTest {
     }
   }
 
-  private static org.sopt.member.domain.Member member(String name) {
-    return new org.sopt.member.domain.Member(name);
+  private static org.sopt.post.domain.PostAuthor member(String name) {
+    return new org.sopt.post.domain.PostAuthor(1L, name);
   }
 }

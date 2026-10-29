@@ -22,7 +22,7 @@ public abstract class MemberUnitSupport {
   }
 
   protected long memberId(String name) {
-    return memberCommands.createMember(name).getId();
+    return memberCommands.createMember(name).id();
   }
 
   private static class Members implements LoadMemberPort, SaveMemberPort {

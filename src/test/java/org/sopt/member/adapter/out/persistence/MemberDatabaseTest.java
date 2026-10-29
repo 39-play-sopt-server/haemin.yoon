@@ -22,17 +22,16 @@ class MemberDatabaseTest extends MemberDatabaseSupport {
   void saveWithExistingIdDoesNotOverwriteExistingMember() {
     var original = memberCommands.createMember("기존 회원");
     var duplicate = new Member("덮어쓸 이름");
-    ReflectionTestUtils.setField(duplicate, "id", original.getId());
+    ReflectionTestUtils.setField(duplicate, "id", original.id());
 
     assertThrows(IllegalArgumentException.class, () -> writer.save(duplicate));
 
     assertEquals(
         "기존 회원",
-        jdbc.queryForObject(
-            "SELECT name FROM members WHERE id = ?", String.class, original.getId()));
+        jdbc.queryForObject("SELECT name FROM members WHERE id = ?", String.class, original.id()));
     assertFalse(
         jdbc.queryForObject(
-            "SELECT deleted FROM members WHERE id = ?", Boolean.class, original.getId()));
+            "SELECT deleted FROM members WHERE id = ?", Boolean.class, original.id()));
     assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM members", Integer.class));
   }
 

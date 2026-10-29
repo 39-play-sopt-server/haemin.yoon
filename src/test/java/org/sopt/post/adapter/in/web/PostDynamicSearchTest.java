@@ -31,7 +31,7 @@ class PostDynamicSearchTest extends MemberDatabaseSupport {
   @ParameterizedTest
   @ValueSource(ints = {0, 1, 2, 3, 4, 5, 6, 7})
   void combinesEverySubsetOfTitleCategoryAndAuthor(int mask) throws Exception {
-    long another = memberCommands.createMember("작성자").getId();
+    long another = memberCommands.createMember("작성자").id();
     create("Spring A 일반", Category.GENERAL, 1L);
     create("다른 A", Category.QUESTION, 1L);
     create("Spring A 질문", Category.QUESTION, 1L);
@@ -71,7 +71,7 @@ class PostDynamicSearchTest extends MemberDatabaseSupport {
 
   @Test
   void scrollsCombinedSearchAndRejectsCursorReuseForAnotherAuthor() throws Exception {
-    long another = memberCommands.createMember("다른 작성자").getId();
+    long another = memberCommands.createMember("다른 작성자").id();
     for (int i = 0; i < 3; i++) {
       create("검색 A" + i, Category.GENERAL, 1L);
       create("검색 B" + i, Category.GENERAL, another);

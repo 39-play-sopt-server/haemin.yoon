@@ -36,14 +36,18 @@ class MemberTest extends MemberUnitSupport {
   @Test
   void deletionPreservesIdentityAndNameButPreventsActiveLookupAndNewPosts() {
     var member = memberQueries.getActiveMember(1);
-    assertFalse(member.isDeleted());
     memberCommands.deleteMember(1);
-    assertTrue(member.isDeleted());
-    assertEquals(1L, member.getId());
-    assertEquals("작성자", member.getName());
+    assertEquals(1L, member.id());
+    assertEquals("작성자", member.name());
     assertThrows(MemberException.class, () -> memberQueries.getActiveMember(1));
     assertThrows(MemberException.class, () -> memberCommands.deleteMember(1));
-    assertThrows(PostException.class, () -> new Post("제목", "본문", Category.GENERAL, member));
+    var posts = new org.sopt.post.adapter.out.persistence.InMemoryPostRepository();
+    assertThrows(
+        MemberException.class,
+        () ->
+            new org.sopt.post.application.service.command.PostCommandService(
+                    posts, posts, memberQueries)
+                .createPost("제목", "본문", Category.GENERAL, member.id()));
     assertThrows(PostException.class, () -> new Post("제목", "본문", Category.GENERAL, null));
   }
 }

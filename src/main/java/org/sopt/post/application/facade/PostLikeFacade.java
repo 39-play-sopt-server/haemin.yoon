@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.sopt.post.application.port.in.command.PostLikeCommandUseCase;
 import org.sopt.post.application.port.in.command.PostLikeResult;
+import org.sopt.post.application.port.in.command.PostLikeUseCase;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -19,15 +20,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional(propagation = Propagation.NEVER)
-public class PostLikeFacade {
+public class PostLikeFacade implements PostLikeUseCase {
   private static final Logger LOGGER = LoggerFactory.getLogger(PostLikeFacade.class);
   private static final int MAX_ATTEMPTS = 3;
   private final PostLikeCommandUseCase commands;
 
+  @Override
   public PostLikeResult like(long postId, long memberId) {
     return retry(() -> commands.like(postId, memberId));
   }
 
+  @Override
   public PostLikeResult unlike(long postId, long memberId) {
     return retry(() -> commands.unlike(postId, memberId));
   }

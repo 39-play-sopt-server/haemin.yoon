@@ -32,13 +32,17 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     var first = queries.getPosts(new PostListQuery(null, 2, null, null, null));
     assertEquals(
         java.util.List.of("글2", "글1"),
-        first.posts().stream().map(org.sopt.post.domain.Post::getTitle).toList());
+        first.posts().stream()
+            .map(org.sopt.post.application.port.in.query.PostInfo::title)
+            .toList());
     assertTrue(first.hasNext());
-    assertEquals(first.posts().getLast().getId(), first.nextCursor().id());
+    assertEquals(first.posts().getLast().id(), first.nextCursor().id());
     var last = queries.getPosts(new PostListQuery(first.nextCursor(), 2, null, null, null));
     assertEquals(
         java.util.List.of("글0"),
-        last.posts().stream().map(org.sopt.post.domain.Post::getTitle).toList());
+        last.posts().stream()
+            .map(org.sopt.post.application.port.in.query.PostInfo::title)
+            .toList());
     assertFalse(last.hasNext());
     assertNull(last.nextCursor());
     assertThrows(UnsupportedOperationException.class, first.posts()::clear);
@@ -63,7 +67,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     var exception =
         assertThrows(PostException.class, () -> commands.updatePost(1, "수정", "수정 본문", -1));
     assertEquals(PostErrorCode.INVALID_VERSION, exception.getErrorCode());
-    assertEquals("제목", queries.getPost(1).getTitle());
+    assertEquals("제목", queries.getPost(1).title());
   }
 
   @Test
@@ -74,7 +78,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
             org.sopt.global.exception.BaseException.class,
             () -> commands.updatePost(1, "수정", "수정 본문", 1));
     assertEquals(org.sopt.global.exception.GlobalErrorCode.CONFLICT, exception.getErrorCode());
-    assertEquals("제목", queries.getPost(1).getTitle());
+    assertEquals("제목", queries.getPost(1).title());
   }
 
   @Test
@@ -88,17 +92,17 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
             .getPosts(new PostListQuery(null, 100, null, null, null))
             .posts()
             .getFirst()
-            .getViewCount());
+            .viewCount());
   }
 
   @Test
   void commandIncrementsViewsAndQueryOnlyReadsTheResult() {
     commands.createPost("제목", "본문", Category.GENERAL, memberId("작성자"));
     commands.increaseViewCount(1);
-    assertEquals(1, queries.getPost(1).getViewCount());
-    assertEquals(1, queries.getPost(1).getViewCount());
+    assertEquals(1, queries.getPost(1).viewCount());
+    assertEquals(1, queries.getPost(1).viewCount());
     assertNotFound(() -> commands.increaseViewCount(2));
-    assertEquals(1, queries.getPost(1).getViewCount());
+    assertEquals(1, queries.getPost(1).viewCount());
   }
 
   @ParameterizedTest
@@ -114,7 +118,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     assertEquals("제목은 비어 있을 수 없습니다.", exception.getMessage());
     assertEquals(
         1, queries.getPosts(new PostListQuery(null, 100, null, null, null)).posts().size());
-    assertEquals("기존 제목", queries.getPost(1).getTitle());
+    assertEquals("기존 제목", queries.getPost(1).title());
   }
 
   @ParameterizedTest
@@ -159,24 +163,24 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     commands.createPost("제목", "본문", category, memberId("홍길동"));
     LocalDateTime after = LocalDateTime.now();
     var post = queries.getPost(1);
-    assertEquals(category, post.getCategory());
-    assertEquals("홍길동", post.getMember().getName());
-    assertFalse(post.getCreatedAt().isBefore(before));
-    assertFalse(post.getCreatedAt().isAfter(after));
-    LocalDateTime createdAt = post.getCreatedAt();
+    assertEquals(category, post.category());
+    assertEquals("홍길동", post.authorName());
+    assertFalse(post.createdAt().isBefore(before));
+    assertFalse(post.createdAt().isAfter(after));
+    LocalDateTime createdAt = post.createdAt();
     commands.updatePost(1, "새 제목", "새 본문", 0L);
     var updated = queries.getPost(1);
-    assertEquals(category, updated.getCategory());
-    assertEquals("홍길동", updated.getMember().getName());
-    assertEquals(createdAt, updated.getCreatedAt());
-    assertEquals("새 제목", updated.getTitle());
+    assertEquals(category, updated.category());
+    assertEquals("홍길동", updated.authorName());
+    assertEquals(createdAt, updated.createdAt());
+    assertEquals("새 제목", updated.title());
   }
 
   @Test
   void preservesWhitespaceAroundValidText() {
     commands.createPost(" 제목 ", " 본문 ", Category.GENERAL, memberId("작성자"));
-    assertEquals(" 제목 ", queries.getPost(1).getTitle());
-    assertEquals(" 본문 ", queries.getPost(1).getContent());
+    assertEquals(" 제목 ", queries.getPost(1).title());
+    assertEquals(" 본문 ", queries.getPost(1).content());
   }
 
   @Test
@@ -188,8 +192,8 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
         2, queries.getPosts(new PostListQuery(null, 100, null, null, null)).posts().size());
     assertEquals(
         "둘째 글",
-        queries.getPosts(new PostListQuery(null, 100, null, null, null)).posts().get(0).getTitle());
-    assertEquals("둘째 본문", queries.getPost(2).getContent());
+        queries.getPosts(new PostListQuery(null, 100, null, null, null)).posts().get(0).title());
+    assertEquals("둘째 본문", queries.getPost(2).content());
   }
 
   @ParameterizedTest
@@ -200,8 +204,8 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     PostException exception =
         assertThrows(PostException.class, () -> commands.updatePost(1, title, "새 본문", 0L));
     assertEquals(PostErrorCode.INVALID_TITLE, exception.getErrorCode());
-    assertEquals("기존 제목", queries.getPost(1).getTitle());
-    assertEquals("기존 본문", queries.getPost(1).getContent());
+    assertEquals("기존 제목", queries.getPost(1).title());
+    assertEquals("기존 본문", queries.getPost(1).content());
   }
 
   @ParameterizedTest
@@ -212,32 +216,34 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     PostException exception =
         assertThrows(PostException.class, () -> commands.updatePost(1, "새 제목", content, 0L));
     assertEquals(PostErrorCode.INVALID_CONTENT, exception.getErrorCode());
-    assertEquals("기존 제목", queries.getPost(1).getTitle());
-    assertEquals("기존 본문", queries.getPost(1).getContent());
+    assertEquals("기존 제목", queries.getPost(1).title());
+    assertEquals("기존 본문", queries.getPost(1).content());
   }
 
   @Test
   void updatesBothTitleAndContent() {
     commands.createPost("이전 제목", "이전 본문", Category.GENERAL, memberId("작성자"));
     commands.updatePost(1, "새 제목", "새 본문", 0L);
-    assertEquals("새 제목", queries.getPost(1).getTitle());
-    assertEquals("새 본문", queries.getPost(1).getContent());
+    assertEquals("새 제목", queries.getPost(1).title());
+    assertEquals("새 본문", queries.getPost(1).content());
   }
 
   @Test
-  void serviceUpdateChangesTheLoadedEntityInPlace() {
+  void serviceUpdateReturnsANewImmutableSnapshot() {
     commands.createPost("기존 제목", "기존 본문", Category.QUESTION, memberId("작성자"));
     var loaded = queries.getPost(1);
-    var createdAt = loaded.getCreatedAt();
+    var createdAt = loaded.createdAt();
 
     commands.updatePost(1, "새 제목", "새 본문", 0L);
 
-    assertSame(loaded, queries.getPost(1));
-    assertEquals("새 제목", loaded.getTitle());
-    assertEquals("새 본문", loaded.getContent());
-    assertEquals(Category.QUESTION, loaded.getCategory());
-    assertEquals("작성자", loaded.getMember().getName());
-    assertEquals(createdAt, loaded.getCreatedAt());
+    var updated = queries.getPost(1);
+    assertNotSame(loaded, updated);
+    assertEquals("기존 제목", loaded.title());
+    assertEquals("새 제목", updated.title());
+    assertEquals("새 본문", updated.content());
+    assertEquals(Category.QUESTION, updated.category());
+    assertEquals("작성자", updated.authorName());
+    assertEquals(createdAt, updated.createdAt());
   }
 
   @Test
@@ -249,15 +255,15 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     assertEquals(
         java.util.List.of(3L, 1L),
         queries.getPosts(new PostListQuery(null, 100, null, null, null)).posts().stream()
-            .map(p -> p.getId())
+            .map(p -> p.id())
             .toList());
-    assertEquals("셋째 글", queries.getPost(3).getTitle());
+    assertEquals("셋째 글", queries.getPost(3).title());
     assertNotFound(() -> queries.getPost(2));
     commands.createPost("새 글", "새 본문", Category.GENERAL, memberId("작성자"));
-    assertEquals(4L, queries.getPost(4).getId());
+    assertEquals(4L, queries.getPost(4).id());
     commands.updatePost(3, "셋째 수정", "수정 본문", 0L);
-    assertEquals(3L, queries.getPost(3).getId());
-    assertEquals("첫 글", queries.getPost(1).getTitle());
+    assertEquals(3L, queries.getPost(3).id());
+    assertEquals("첫 글", queries.getPost(1).title());
   }
 
   @Test
@@ -270,7 +276,7 @@ class PostCommandQueryServiceTest extends MemberUnitSupport {
     }
     assertEquals(
         1, queries.getPosts(new PostListQuery(null, 100, null, null, null)).posts().size());
-    assertEquals("제목", queries.getPost(1).getTitle());
+    assertEquals("제목", queries.getPost(1).title());
   }
 
   private void assertNotFound(org.junit.jupiter.api.function.Executable action) {

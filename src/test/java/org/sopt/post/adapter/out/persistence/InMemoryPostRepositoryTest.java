@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.sopt.post.application.port.in.query.PostListQuery;
+import org.sopt.post.application.port.out.PostListCriteria;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
 
@@ -18,8 +18,8 @@ class InMemoryPostRepositoryTest {
   @Test
   void returnedListCannotChangeStoredMembership() {
     repository.save(post("제목"));
-    repository.findAll(new PostListQuery(null, 100, null, null, null)).clear();
-    assertEquals(1, repository.findAll(new PostListQuery(null, 100, null, null, null)).size());
+    repository.findAll(criteria()).clear();
+    assertEquals(1, repository.findAll(criteria()).size());
     assertEquals("제목", repository.findById(1).orElseThrow().getTitle());
   }
 
@@ -30,17 +30,11 @@ class InMemoryPostRepositoryTest {
     repository.save(second);
     repository.save(post("셋째 글"));
     assertEquals(
-        List.of(3L, 2L, 1L),
-        repository.findAll(new PostListQuery(null, 100, null, null, null)).stream()
-            .map(Post::getId)
-            .toList());
+        List.of(3L, 2L, 1L), repository.findAll(criteria()).stream().map(Post::getId).toList());
     repository.delete(second);
     assertTrue(repository.findById(2).isEmpty());
     assertEquals(
-        List.of(3L, 1L),
-        repository.findAll(new PostListQuery(null, 100, null, null, null)).stream()
-            .map(Post::getId)
-            .toList());
+        List.of(3L, 1L), repository.findAll(criteria()).stream().map(Post::getId).toList());
     assertEquals("셋째 글", repository.findById(3).orElseThrow().getTitle());
   }
 
@@ -49,11 +43,15 @@ class InMemoryPostRepositoryTest {
     var existing = post("기존 글");
     repository.save(existing);
     assertThrows(IllegalArgumentException.class, () -> repository.save(existing));
-    assertEquals(1, repository.findAll(new PostListQuery(null, 100, null, null, null)).size());
+    assertEquals(1, repository.findAll(criteria()).size());
     assertEquals("기존 글", repository.findById(existing.getId()).orElseThrow().getTitle());
   }
 
-  private static org.sopt.member.domain.Member member(String name) {
-    return new org.sopt.member.domain.Member(name);
+  private static PostListCriteria criteria() {
+    return new PostListCriteria(null, null, 100, null, null, null);
+  }
+
+  private static org.sopt.post.domain.PostAuthor member(String name) {
+    return new org.sopt.post.domain.PostAuthor(1L, name);
   }
 }

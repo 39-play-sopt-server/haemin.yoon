@@ -1,6 +1,7 @@
 package org.sopt.member.application.service.command;
 
 import lombok.RequiredArgsConstructor;
+import org.sopt.member.application.port.in.MemberInfo;
 import org.sopt.member.application.port.in.command.MemberCommandUseCase;
 import org.sopt.member.application.port.out.LoadMemberPort;
 import org.sopt.member.application.port.out.SaveMemberPort;
@@ -19,8 +20,9 @@ public class MemberCommandService implements MemberCommandUseCase {
   private final SaveMemberPort saveMemberPort;
 
   @Override
-  public Member createMember(String name) {
-    return saveMemberPort.save(new Member(name));
+  public MemberInfo createMember(String name) {
+    var saved = saveMemberPort.save(new Member(name));
+    return new MemberInfo(saved.getId(), saved.getName());
   }
 
   @Override

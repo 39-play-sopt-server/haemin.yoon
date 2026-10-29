@@ -8,8 +8,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
+import org.sopt.post.application.port.out.PostListCriteria;
 import org.sopt.post.application.port.out.SavePostPort;
 import org.sopt.post.domain.Post;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -33,12 +33,12 @@ public class InMemoryPostRepository implements LoadPostPort, SavePostPort {
   }
 
   @Override
-  public List<Post> findAll(PostListQuery query) {
+  public List<Post> findAll(PostListCriteria query) {
     List<Post> result = new ArrayList<>(posts.values());
     result.sort(Comparator.comparing(Post::getCreatedAt).thenComparingLong(Post::getId).reversed());
     return result.stream()
         .filter(
-            post -> query.authorId() == null || query.authorId().equals(post.getMember().getId()))
+            post -> query.authorId() == null || query.authorId().equals(post.getAuthorMemberId()))
         .filter(post -> query.category() == null || post.getCategory() == query.category())
         .filter(
             post ->
@@ -48,10 +48,10 @@ public class InMemoryPostRepository implements LoadPostPort, SavePostPort {
                         .contains(query.keyword().toLowerCase(java.util.Locale.ROOT)))
         .filter(
             post ->
-                query.cursor() == null
-                    || post.getCreatedAt().isBefore(query.cursor().createdAt())
-                    || (post.getCreatedAt().equals(query.cursor().createdAt())
-                        && post.getId() < query.cursor().id()))
+                query.cursorId() == null
+                    || post.getCreatedAt().isBefore(query.cursorCreatedAt())
+                    || (post.getCreatedAt().equals(query.cursorCreatedAt())
+                        && post.getId() < query.cursorId()))
         .limit(query.size() + 1L)
         .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
   }

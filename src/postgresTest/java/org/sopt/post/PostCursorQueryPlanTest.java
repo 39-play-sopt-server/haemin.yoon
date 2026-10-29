@@ -59,10 +59,11 @@ class PostCursorQueryPlanTest {
         "INSERT INTO members (id, name, deleted, created_at, updated_at) OVERRIDING SYSTEM VALUE SELECT g, '회원-' || g, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM generate_series(2, 100) g");
     jdbc.update(
         """
-        INSERT INTO posts (title, content, category, member_id, created_at, updated_at, view_count, version)
+        INSERT INTO posts (title, content, category, member_id, author_name, created_at, updated_at, view_count, version)
         SELECT 'post-' || g, repeat('x', 100),
           CASE g % 3 WHEN 0 THEN 'GENERAL' WHEN 1 THEN 'QUESTION' ELSE 'INFORMATION' END,
-          1 + g % 100, TIMESTAMP '2026-01-01 00:00:00' + g * INTERVAL '1 second', CURRENT_TIMESTAMP, 0, 0
+          1 + g % 100, '작성자-' || (1 + g % 100),
+          TIMESTAMP '2026-01-01 00:00:00' + g * INTERVAL '1 second', CURRENT_TIMESTAMP, 0, 0
         FROM generate_series(1, 100000) g
         """);
     jdbc.execute("ANALYZE posts");

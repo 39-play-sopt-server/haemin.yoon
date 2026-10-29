@@ -25,7 +25,7 @@ class PostLengthValidationTest {
         new Post("제".repeat(200), "본".repeat(10000), Category.GENERAL, member("작".repeat(50)));
     assertEquals("제".repeat(200), post.getTitle());
     assertEquals("본".repeat(10000), post.getContent());
-    assertEquals("작".repeat(50), post.getMember().getName());
+    assertEquals("작".repeat(50), post.getAuthorName());
     post.update("수".repeat(200), "정".repeat(10000));
     assertEquals("수".repeat(200), post.getTitle());
     assertEquals("정".repeat(10000), post.getContent());
@@ -62,7 +62,7 @@ class PostLengthValidationTest {
     assertEquals("기존 본문", post.getContent());
   }
 
-  private static org.sopt.member.domain.Member member(String name) {
-    return new org.sopt.member.domain.Member(name);
+  private static PostAuthor member(String name) {
+    return new PostAuthor(1L, name);
   }
 }

@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.sopt.global.response.BaseResponse;
 import org.sopt.post.adapter.in.web.dto.response.PostLikeResponse;
-import org.sopt.post.application.facade.PostLikeFacade;
+import org.sopt.post.application.port.in.command.PostLikeUseCase;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
     value = "/posts/{postId}/likes/{memberId}",
     produces = MediaType.APPLICATION_JSON_VALUE)
 public class PostLikeController {
-  private final PostLikeFacade facade;
+  private final PostLikeUseCase useCase;
 
   @PutMapping
   @Operation(
@@ -35,7 +35,7 @@ public class PostLikeController {
   public BaseResponse<PostLikeResponse> like(
       @PathVariable("postId") long postId, @PathVariable("memberId") long memberId) {
     return BaseResponse.success(
-        PostLikeResponse.from(facade.like(postId, memberId)), "좋아요를 설정했습니다.");
+        PostLikeResponse.from(useCase.like(postId, memberId)), "좋아요를 설정했습니다.");
   }
 
   @DeleteMapping
@@ -46,6 +46,6 @@ public class PostLikeController {
   public BaseResponse<PostLikeResponse> unlike(
       @PathVariable("postId") long postId, @PathVariable("memberId") long memberId) {
     return BaseResponse.success(
-        PostLikeResponse.from(facade.unlike(postId, memberId)), "좋아요를 취소했습니다.");
+        PostLikeResponse.from(useCase.unlike(postId, memberId)), "좋아요를 취소했습니다.");
   }
 }
