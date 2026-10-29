@@ -57,6 +57,8 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 | HEAD | `/posts/{id}` | 조회수 증가 없이 응답 헤더 확인. 본문 없음 | 200 |
 | PUT | `/posts/{id}` | 제목·본문 수정 | 200 |
 | DELETE | `/posts/{id}` | 게시글 삭제 | 200 |
+| PUT | `/posts/{postId}/likes/{memberId}` | 멱등 좋아요 설정, liked·likeCount 반환 | 200 |
+| DELETE | `/posts/{postId}/likes/{memberId}` | 멱등 좋아요 취소, liked·likeCount 반환 | 200 |
 
 `@Operation`, `@Tag`, `@Parameter`, `@Schema`로 API 설명과 필드 예시를 제공한다.
 문서 대상은 프로젝트 루트 패키지 `org.sopt`의 컨트롤러다.
@@ -88,6 +90,8 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 - 목록의 data는 items·hasNext·nextCursor 객체, 단건 조회는 게시글 객체, 게시글 생성·수정·삭제 및 오류 응답은 null이다.
 - 회원 생성의 data는 id·name 객체다. 회원 삭제는 소프트 삭제이며 data는 null이다.
 - 게시글 응답의 author는 연결된 회원 이름이다. 삭제된 회원의 기존 게시글과 이름은 유지한다.
+- 게시글 목록·단건 응답의 likeCount는 좋아요 수다. 좋아요 API의 ID는 양수이며 활성 회원만 변경할 수 있다.
+  잠금 충돌은 최대 3회 시도 후 503·POST_LIKE_BUSY로 반환한다. [정책과 동시성 설계](post-likes.md)를 참고한다.
 - 잘못된 요청(400), 존재하지 않는 게시글(404), 서버 오류(500)의 공통 응답과 예시를 제공한다.
 - createdAt은 서버 로컬 시각이며 타임존 정보가 없다.
 - viewCount는 0부터 시작한다. 상세 조회 성공마다 1 증가한 값을 반환하며 목록 조회에서는 증가하지 않는다.

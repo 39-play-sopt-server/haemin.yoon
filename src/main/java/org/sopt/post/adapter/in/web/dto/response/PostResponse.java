@@ -19,8 +19,8 @@ public record PostResponse(
         LocalDateTime createdAt,
     @Schema(description = "조회수. 상세 조회 성공마다 1 증가하며 목록 조회에서는 증가하지 않습니다.", example = "1")
         long viewCount,
-    @Schema(description = "편집 버전. 수정 요청에 이 값을 전달하며 조회수 증가로는 바뀌지 않습니다.", example = "0")
-        long version) {
+    @Schema(description = "편집 버전. 수정 요청에 이 값을 전달하며 조회수 증가로는 바뀌지 않습니다.", example = "0") long version,
+    @Schema(description = "게시글의 좋아요 수", example = "3") long likeCount) {
   /**
    * 도메인의 값을 응답으로 복사합니다. 외부용 DTO가 도메인을 참조하므로 의존성은 내부를 향합니다. 변환 규칙을 결과 DTO와 함께 두어 컨트롤러는 유스케이스 호출과 응답
    * 처리 흐름에 집중합니다.
@@ -34,6 +34,7 @@ public record PostResponse(
         post.getMember().getName(),
         post.getCreatedAt(),
         post.getViewCount(),
-        post.getVersion());
+        post.getVersion(),
+        post.getLikeCount());
   }
 }

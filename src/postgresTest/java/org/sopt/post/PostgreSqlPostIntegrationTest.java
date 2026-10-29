@@ -161,7 +161,7 @@ class PostgreSqlPostIntegrationTest {
       assertEquals(18, connection.getMetaData().getDatabaseMajorVersion());
     }
     assertEquals(
-        List.of("1", "2", "3", "4", "5", "6", "7", "8", "9"),
+        List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"),
         jdbc.queryForList(
             "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank",
             String.class));
@@ -421,7 +421,7 @@ class PostgreSqlPostIntegrationTest {
               .schemas(schema)
               .locations("classpath:db/migration", "classpath:db/postgresql")
               .load();
-      assertEquals(6, flyway.migrate().migrationsExecuted);
+      assertEquals(7, flyway.migrate().migrationsExecuted);
       var rows =
           jdbc.queryForList(
               "SELECT title, content, view_count, version, created_at, updated_at FROM "
@@ -475,23 +475,33 @@ class PostgreSqlPostIntegrationTest {
               .load();
       assertThrows(FlywayException.class, flyway::migrate);
       flyway.baseline();
-      assertEquals(8, flyway.migrate().migrationsExecuted);
+      assertEquals(9, flyway.migrate().migrationsExecuted);
       flyway.validate();
       try (var rows =
           statement.executeQuery(
-              "SELECT title, content, view_count, version, created_at, updated_at FROM posts")) {
+              "SELECT title, content, view_count, version, created_at, updated_at, like_count FROM posts")) {
         assertTrue(rows.next());
         assertEquals("기존 제목", rows.getString("title"));
         assertEquals("기존 본문", rows.getString("content"));
         assertEquals(0, rows.getLong("view_count"));
         assertEquals(0, rows.getLong("version"));
+        assertEquals(0, rows.getLong("like_count"));
         assertNotNull(rows.getTimestamp("updated_at"));
         assertEquals(rows.getTimestamp("created_at"), rows.getTimestamp("updated_at"));
         assertFalse(rows.next());
       }
       assertEquals(
           List.of(
-              "BASELINE:1", "SQL:2", "SQL:3", "SQL:4", "SQL:5", "SQL:6", "SQL:7", "SQL:8", "SQL:9"),
+              "BASELINE:1",
+              "SQL:2",
+              "SQL:3",
+              "SQL:4",
+              "SQL:5",
+              "SQL:6",
+              "SQL:7",
+              "SQL:8",
+              "SQL:9",
+              "SQL:10"),
           jdbc.queryForList(
               "SELECT type || ':' || version FROM "
                   + schema

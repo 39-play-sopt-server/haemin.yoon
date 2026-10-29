@@ -48,6 +48,10 @@ public class Post extends BaseEntity {
   @Column(name = "view_count", nullable = false, updatable = false)
   private long viewCount;
 
+  /** 좋아요 관계와 함께 전용 출력 포트에서 갱신합니다. 본문 편집은 이 값을 덮어쓰지 않습니다. */
+  @Column(name = "like_count", nullable = false, updatable = false)
+  private long likeCount;
+
   /** 편집 충돌을 감지하는 버전입니다. 값은 JPA가 관리하며 조회수 UPDATE에서는 변경하지 않습니다. */
   @Version
   @Column(nullable = false)
@@ -98,6 +102,10 @@ public class Post extends BaseEntity {
 
   public long getVersion() {
     return version;
+  }
+
+  public long getLikeCount() {
+    return likeCount;
   }
 
   /** 모든 값을 검증한 뒤 관리 중인 엔티티를 변경합니다. 메타데이터는 유지합니다. */

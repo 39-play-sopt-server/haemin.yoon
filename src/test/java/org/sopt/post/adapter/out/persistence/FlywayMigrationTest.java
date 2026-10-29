@@ -21,7 +21,7 @@ class FlywayMigrationTest {
     String url = existingDatabase();
     Flyway flyway = flyway(url);
     flyway.baseline();
-    assertEquals(8, flyway.migrate().migrationsExecuted);
+    assertEquals(9, flyway.migrate().migrationsExecuted);
     flyway.validate();
     assertOriginalPost(url);
     try (var connection = DriverManager.getConnection(url, "sa", "");
@@ -56,16 +56,20 @@ class FlywayMigrationTest {
       assertTrue(rows.next());
       assertEquals("9", rows.getString(1));
       assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("10", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
       assertFalse(rows.next());
     }
     try (var connection = DriverManager.getConnection(url, "sa", "");
         var statement = connection.createStatement();
         var rows =
             statement.executeQuery(
-                "SELECT view_count, version, created_at, updated_at FROM posts")) {
+                "SELECT view_count, version, created_at, updated_at, like_count FROM posts")) {
       assertTrue(rows.next());
       assertEquals(0, rows.getLong(1));
       assertEquals(0, rows.getLong(2));
+      assertEquals(0, rows.getLong("like_count"));
       assertNotNull(rows.getTimestamp("updated_at"));
       assertEquals(rows.getTimestamp("created_at"), rows.getTimestamp("updated_at"));
     }

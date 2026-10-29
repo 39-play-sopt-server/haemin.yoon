@@ -9,6 +9,9 @@ import org.springframework.http.HttpStatus;
  * 구분합니다.
  */
 public enum PostErrorCode implements ErrorCode {
+  INVALID_LIKE_ID(HttpStatus.BAD_REQUEST, "INVALID_LIKE_ID", "게시글 ID와 회원 ID는 양수여야 합니다."),
+  POST_LIKE_BUSY(
+      HttpStatus.SERVICE_UNAVAILABLE, "POST_LIKE_BUSY", "좋아요 처리 중 충돌했습니다. 잠시 후 다시 시도해주세요."),
   POST_NOT_FOUND(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "존재하지 않는 게시글입니다."),
   INVALID_TITLE(HttpStatus.BAD_REQUEST, "INVALID_TITLE", "제목은 비어 있을 수 없습니다."),
   INVALID_CONTENT(HttpStatus.BAD_REQUEST, "INVALID_CONTENT", "본문은 비어 있을 수 없습니다."),

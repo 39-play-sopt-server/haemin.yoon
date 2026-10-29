@@ -8,6 +8,7 @@ import org.sopt.global.docs.OpenApiResponses;
 import org.sopt.global.exception.GlobalErrorCode;
 import org.sopt.global.response.BaseResponse;
 import org.sopt.global.response.ValidationViolation;
+import org.sopt.member.domain.exception.MemberErrorCode;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +22,30 @@ public class PostOpenApiConfig {
     return openApi ->
         openApi
             .getComponents()
+            .addResponses(
+                "PostLikeBadRequest",
+                OpenApiResponses.errorResponses(
+                    "게시글·회원 ID는 양수인 long 정수여야 합니다. 형식 오류는 INVALID_REQUEST, 0 이하는 INVALID_LIKE_ID입니다.",
+                    Map.of(
+                        "InvalidRequest",
+                        BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST),
+                        "InvalidLikeId",
+                        BaseResponse.failure(PostErrorCode.INVALID_LIKE_ID))))
+            .addResponses(
+                "PostLikeNotFound",
+                OpenApiResponses.errorResponses(
+                    "활성 회원 또는 게시글이 없습니다. 회원 확인을 먼저 수행합니다.",
+                    Map.of(
+                        "MemberNotFound",
+                        BaseResponse.failure(MemberErrorCode.MEMBER_NOT_FOUND),
+                        "PostNotFound",
+                        BaseResponse.failure(PostErrorCode.POST_NOT_FOUND))))
+            .addResponses(
+                "PostLikeBusy",
+                OpenApiResponses.errorResponse(
+                    "데드락·잠금 충돌·잠금 조회 시간 초과로 최대 3회 시도 후 실패했습니다. 같은 PUT 또는 DELETE를 다시 요청할 수 있습니다.",
+                    PostErrorCode.POST_LIKE_BUSY,
+                    List.of()))
             .addResponses("PostListBadRequest", listRequestErrors())
             .addResponses(
                 "InvalidPostId",

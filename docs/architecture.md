@@ -56,6 +56,14 @@ flowchart LR
 | `HEAD /posts/{id}` | `@RequestMapping(method = HEAD)` | 200 |
 | `PUT /posts/{id}` | `@PutMapping("/{id}")` | 200 |
 | `DELETE /posts/{id}` | `@DeleteMapping("/{id}")` | 200 |
+| `PUT /posts/{postId}/likes/{memberId}` | 좋아요 설정 | 200 |
+| `DELETE /posts/{postId}/likes/{memberId}` | 좋아요 취소 | 200 |
+
+좋아요는 `PostLike` 연결 엔티티로 회원과 게시글의 다대다를 표현합니다.
+`PostLikeFacade`가 트랜잭션 밖에서 재시도를 조율하고 `PostLikeCommandService`가
+게시글 잠금·관계 변경·카운터 갱신을 한 트랜잭션에서 수행합니다.
+조회 응답의 `likeCount`는 게시글 컬럼에서 읽어 목록의 추가 COUNT 쿼리를 방지합니다.
+잠금 순서·멱등성과 확장 시 제약은 [좋아요 설계](post-likes.md)를 참고하세요.
 
 JSON 본문은 `@RequestBody`로 요청 record에 바인딩한 뒤 생성·수정 요청에 `@Valid`를 적용합니다. 경로 ID는
 `@PathVariable("id")`로 받습니다. 수정은 제목·본문을 모두 전달하는 기존 계약을 따릅니다.

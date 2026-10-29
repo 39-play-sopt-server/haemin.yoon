@@ -89,7 +89,7 @@ class ApiDocumentationTest {
     mvc.perform(get("/v3/api-docs"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.info.title").value("PLAY SOPT SERVER Assignment API"))
-        .andExpect(jsonPath("$.paths", aMapWithSize(4)))
+        .andExpect(jsonPath("$.paths", aMapWithSize(5)))
         .andExpect(jsonPath("$.paths['/posts'].get.summary").value("게시글 목록 조회"))
         .andExpect(jsonPath("$.paths['/posts'].post.responses['201']").exists())
         .andExpect(

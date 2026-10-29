@@ -68,7 +68,7 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 - requestId·traceId와 로그 연동, 인증·인가, 요청 횟수 제한 기능은 구현하지 않았습니다.
 - 커서 기반 무한 스크롤은 총 개수·총 페이지 수와 임의 페이지 이동을 제공하지 않습니다. 최신 글 확인은 첫 목록부터 다시 조회합니다.
 - PostgreSQL의 동시성 정합성·행별 잠금·롤백을 자동 검증하지만, 운영 규모 부하·잠금 대기 측정은 별도 검증이 필요합니다.
-- 필드별 검증 목록은 생성·수정 요청 본문에 적용합니다. 길이는 UTF-16 코드 단위이며 기존 DB의 대형 본문은 축약하지 않습니다. 경로 ID의 양수 제약은 추가하지 않았습니다.
+- 필드별 검증 목록은 생성·수정 요청 본문에 적용합니다. 길이는 UTF-16 코드 단위이며 기존 DB의 대형 본문은 축약하지 않습니다. 기존 CRUD 경로 ID에는 양수 제약을 추가하지 않았으며 좋아요 경로 ID에는 적용합니다.
 
 ## 3주차 회원 시스템
 
@@ -81,5 +81,8 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 | 제목 검색 | keyword 부분 일치·대소문자 무시, 특수문자 리터럴 처리, 카테고리·커서와 조합 | PostTitleSearchTest, PostCursorCodecTest, PostgreSqlPostIntegrationTest |
 | 제목 검색 인덱스 | V8의 pg_trgm GIN, 선택적 검색어의 인덱스 전후 스캔량 검증 | PostCursorQueryPlanTest |
 | 동적 검색 | 작성자 ID·카테고리·제목 조건 조합, V9 복합 인덱스, 커서 필터 일치 | PostDynamicSearchTest, PostgreSqlPostIntegrationTest, PostCursorQueryPlanTest |
+| 좋아요·취소와 다대다 | PostLike 연결 엔티티, 회원·게시글 유일 제약, 멱등 PUT·DELETE, 조회 응답 likeCount, V10 | PostLikeHttpTest |
+| 좋아요 동시성·데드락 | 게시글 우선 잠금, 관계·카운터 단일 트랜잭션, 새 트랜잭션 재시도·시간 초과 | PostLikeConcurrencyTest, PostLikeFacadeTest |
 
 [회원 API와 데이터 전환 정책](members.md)을 참고하세요.
+[좋아요 API와 동시성 설계](post-likes.md)도 참고하세요.
