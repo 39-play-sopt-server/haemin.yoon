@@ -11,8 +11,7 @@ class PostTextValidationTest {
   @ParameterizedTest
   @CsvSource({
     "title,0", "title,1", "title,3",
-    "content,0", "content,1", "content,3",
-    "author,0", "author,1", "author,3"
+    "content,0", "content,1", "content,3"
   })
   void rejectsNulAnywhereInCreationText(String field, int position) {
     String invalid = new StringBuilder("텍스트").insert(position, '\0').toString();
@@ -24,14 +23,14 @@ class PostTextValidationTest {
                     field.equals("title") ? invalid : "제목",
                     field.equals("content") ? invalid : "본문",
                     Category.GENERAL,
-                    field.equals("author") ? invalid : "작성자"));
+                    member("작성자")));
     assertEquals("NUL_CHARACTER_NOT_ALLOWED", exception.getErrorCode().getCode());
   }
 
   @ParameterizedTest
   @CsvSource({"title,0", "title,1", "title,3", "content,0", "content,1", "content,3"})
   void rejectedNulUpdatePreservesBothFields(String field, int position) {
-    var post = new Post("기존 제목", "기존 본문", Category.GENERAL, "작성자");
+    var post = new Post("기존 제목", "기존 본문", Category.GENERAL, member("작성자"));
     String invalid = new StringBuilder("텍스트").insert(position, '\0').toString();
     var exception =
         assertThrows(
@@ -48,12 +47,16 @@ class PostTextValidationTest {
   @Test
   void preservesUnicodeWhitespaceAndLiteralEscapeText() {
     String text = " 한글😀\n\t\\u0000 ";
-    var post = new Post(text, text, Category.GENERAL, text);
+    var post = new Post(text, text, Category.GENERAL, member(text));
     assertEquals(text, post.getTitle());
     assertEquals(text, post.getContent());
-    assertEquals(text, post.getAuthor());
+    assertEquals(text, post.getAuthorName());
     post.update(text + "수정", text + "수정");
     assertEquals(text + "수정", post.getTitle());
     assertEquals(text + "수정", post.getContent());
+  }
+
+  private static PostAuthor member(String name) {
+    return new PostAuthor(1L, name);
   }
 }

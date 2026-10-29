@@ -49,30 +49,49 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 
 | 메서드 | 경로 | 동작 | 성공 상태 |
 | --- | --- | --- | --- |
+| POST | `/members` | 회원 생성 | 201 |
+| DELETE | `/members/{id}` | 회원 소프트 삭제·게시글 보존 | 200 |
 | POST | `/posts` | 게시글 생성 | 201 |
-| GET | `/posts` | page·size 페이지네이션과 선택적 category 필터, ID 오름차순 | 200 |
+| GET | `/posts` | cursor·size 무한 스크롤, authorId·category 필터·keyword 제목 검색, 생성일 내림차순·동일 생성일은 ID 내림차순 | 200 |
 | GET | `/posts/{id}` | 단건 조회 | 200 |
 | HEAD | `/posts/{id}` | 조회수 증가 없이 응답 헤더 확인. 본문 없음 | 200 |
 | PUT | `/posts/{id}` | 제목·본문 수정 | 200 |
 | DELETE | `/posts/{id}` | 게시글 삭제 | 200 |
+| PUT | `/posts/{postId}/likes/{memberId}` | 멱등 좋아요 설정, liked·likeCount 반환 | 200 |
+| DELETE | `/posts/{postId}/likes/{memberId}` | 멱등 좋아요 취소, liked·likeCount 반환 | 200 |
 
 `@Operation`, `@Tag`, `@Parameter`, `@Schema`로 API 설명과 필드 예시를 제공한다.
 문서 대상은 프로젝트 루트 패키지 `org.sopt`의 컨트롤러다.
 내부 오류 처리용 `ApiErrorController`는 `@Hidden`으로 명시적으로 제외한다.
 
-- 생성 요청은 title, content, category, author가 필수다. 문자열은 공백만 입력할 수 없다.
-- 제목은 최대 200, 본문은 10,000, 작성자는 50까지 허용하며 생성·수정에 동일한 상한을 적용한다.
+- 생성 요청은 title, content, category, memberId가 필수다. memberId는 활성 회원의 양수 ID다. 문자열은 공백만 입력할 수 없다.
+- 제목은 최대 200, 본문은 10,000까지 허용하며 생성·수정에 동일한 상한을 적용한다.
   길이는 UTF-16 코드 단위이며 초과 입력은 VALIDATION_FAILED와 해당 필드의 INVALID_LENGTH로 거부한다.
   요청 스키마의 maxLength에도 상한을 제공한다. 목록 응답은 본문 전체를 유지한다.
 - category는 GENERAL, QUESTION, INFORMATION 중 하나다.
-- 목록 조회는 page=0, size=20이 기본값이며 size는 1~100이다. category를 생략하거나 비우면 전체 분류를 조회한다.
-  카테고리 필터링 후 페이지를 나누며 마지막 페이지를 넘으면 빈 배열을 반환한다.
+- 목록 조회는 cursor를 생략하면 첫 묶음이며 size 기본값은 20, 허용 범위는 1~100이다.
+  category를 생략하거나 비우면 전체 분류다. 생성일·ID 내림차순으로 정렬한다.
+  data.items를 누적하고 hasNext=true일 때만 nextCursor를 cursor로 전달한다.
+  마지막 묶음은 hasNext=false, nextCursor=null이다. 작성자 ID·카테고리·검색어를 변경하면 커서를 초기화한다.
+  page 번호 이동은 제공하지 않는다. 잘못된 커서나 작성자 ID·카테고리·검색어가 다른 커서는 400 INVALID_CURSOR다.
+- keyword는 제목 부분 일치 검색이며 대소문자를 구분하지 않는다. 본문·작성자는 검색하지 않는다.
+  앞뒤 공백을 제거하고 빈 값은 전체 목록으로 처리한다. 최대 200 UTF-16 코드 단위이며 NUL을 거부한다.
+  %·_·!도 일반 문자로 검색한다. 검색어를 바꾸면 cursor를 생략하고 다시 시작한다.
+  예: GET /posts?keyword=스프링&size=20, 다음 요청에는 같은 keyword와 응답의 nextCursor를 보낸다.
+  작성자 필터 없는 비검색 커서는 버전 1, 제목 검색은 버전 2, 작성자 필터를 포함하면 버전 3이다. 기존 커서도 계속 지원한다.
+- authorId는 선택적인 작성자 회원 ID 필터이며 양수만 허용한다. 없는 회원은 빈 목록이고 탈퇴 회원의 기존 글도 검색한다.
+  제목·카테고리·작성자 조건은 모든 조합으로 사용할 수 있다.
+  예: GET /posts?authorId=1&category=GENERAL&keyword=스프링&size=20. 다음 요청에도 같은 필터를 유지한다.
 - 수정은 title·content와 조회 응답에서 읽었던 version을 필수로 전달한다. 작성자·카테고리·작성 시각은 유지한다.
   version 누락·음수는 400이며 버전 불일치나 커밋 시 동시 수정 충돌은 409·CONFLICT이다.
   version은 서버가 관리하고 조회수 증가로는 바뀌지 않는다. 동일 내용 저장은 버전을 증가시키지 않는다.
   충돌 시 최신 내용을 다시 읽고 변경을 재검토해야 하며 서버가 자동 재시도하지 않는다.
 - 응답은 success, code, message, data, violations 필드를 갖는다.
-- 목록의 data는 배열, 단건 조회는 객체, 생성·수정·삭제 및 오류 응답은 null이다.
+- 목록의 data는 items·hasNext·nextCursor 객체, 단건 조회는 게시글 객체, 게시글 생성·수정·삭제 및 오류 응답은 null이다.
+- 회원 생성의 data는 id·name 객체다. 회원 삭제는 소프트 삭제이며 data는 null이다.
+- 게시글 응답의 author는 연결된 회원 이름이다. 삭제된 회원의 기존 게시글과 이름은 유지한다.
+- 게시글 목록·단건 응답의 likeCount는 좋아요 수다. 좋아요 API의 ID는 양수이며 활성 회원만 변경할 수 있다.
+  잠금 충돌은 최대 3회 시도 후 503·POST_LIKE_BUSY로 반환한다. [정책과 동시성 설계](post-likes.md)를 참고한다.
 - 잘못된 요청(400), 존재하지 않는 게시글(404), 서버 오류(500)의 공통 응답과 예시를 제공한다.
 - createdAt은 서버 로컬 시각이며 타임존 정보가 없다.
 - viewCount는 0부터 시작한다. 상세 조회 성공마다 1 증가한 값을 반환하며 목록 조회에서는 증가하지 않는다.
@@ -88,7 +107,7 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
   실제 응답 계약과 동일한 오류 예시를 생성한다.
 - `post/adapter/in/web/docs/PostOpenApiConfig`: `OpenApiCustomizer`로
   게시글 전용 응답을 추가한다. 전역 설정은 게시글 설정에 의존하지 않는다.
-  - `PostListBadRequest`: 목록의 page·size 범위 오류, 숫자·카테고리 형식 오류.
+  - `PostListBadRequest`: 목록의 size 범위 오류, 커서·검색어 오류, 숫자·카테고리 형식 오류.
   - `InvalidPostId`: 단건 조회·삭제의 ID 형식 오류.
   - `PostCreateBadRequest`: 생성의 필수 필드 검증, JSON·카테고리 오류.
   - `PostUpdateBadRequest`: 수정의 제목·본문 검증, ID·JSON 오류.
@@ -98,9 +117,9 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
   목록의 400에는 `InvalidPagination`, `InvalidRequest` 예시를 제공한다. 각 컨트롤러는 자신에게 필요한 응답만 참조한다.
 - 컨트롤러는 `#/components/responses/PostNotFound` 참조를 유지한다.
 
-회원 도메인을 추가한다면 회원 웹 어댑터에 문서 설정을 두고 `UserNotFound`처럼
-도메인을 포함한 키로 응답을 등록한다. 공통 헬퍼와 오류 스키마를 재사용하고,
-전역 설정이나 게시글 전용 설정을 수정하지 않는다.
+회원 웹 어댑터의 `MemberOpenApiConfig`가 MemberCreateBadRequest·MemberNotFound·InvalidMemberId를 등록한다.
+공통 헬퍼와 오류 스키마를 재사용하고 전역 설정은 변경하지 않는다.
+게시글 생성은 존재하지 않거나 삭제된 회원을 설명하기 위해 MemberNotFound를 참조한다.
 `springdoc.packages-to-scan`은 프로젝트 루트 패키지 `org.sopt`이므로,
 이 아래에 새 도메인의 컨트롤러를 추가하면 `application.yml` 수정 없이 문서에 포함된다.
 내부 처리용 컨트롤러·메서드는 `@Hidden`으로 문서 노출을 명시적으로 제외한다.
@@ -109,7 +128,7 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 ## 요청 실행
 
 Scalar에서 원하는 API를 열고 요청 실행 버튼을 선택한다.
-생성 API의 예시 JSON으로 게시글을 만든 뒤 목록에서 ID를 확인하고,
+먼저 회원 생성 API로 회원 ID를 얻고 게시글 생성의 memberId에 입력한다. 게시글을 만든 뒤 목록에서 ID를 확인하고,
 그 ID로 단건 조회·수정·삭제를 실행할 수 있다.
 화면에서 실행하는 요청은 연결된 DB의 실제 데이터를 변경한다.
 

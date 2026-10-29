@@ -65,7 +65,9 @@ class ApiDocumentationTest {
                 .andExpect(status().isOk())
                 .andExpect(
                     jsonPath("$.paths['/posts'].get.parameters[*].name")
-                        .value(containsInAnyOrder("page", "size", "category")))
+                        .value(
+                            containsInAnyOrder(
+                                "cursor", "size", "category", "keyword", "authorId")))
                 .andReturn()
                 .getResponse()
                 .getContentAsString());
@@ -87,7 +89,7 @@ class ApiDocumentationTest {
     mvc.perform(get("/v3/api-docs"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.info.title").value("PLAY SOPT SERVER Assignment API"))
-        .andExpect(jsonPath("$.paths", aMapWithSize(2)))
+        .andExpect(jsonPath("$.paths", aMapWithSize(5)))
         .andExpect(jsonPath("$.paths['/posts'].get.summary").value("게시글 목록 조회"))
         .andExpect(jsonPath("$.paths['/posts'].post.responses['201']").exists())
         .andExpect(
@@ -106,7 +108,7 @@ class ApiDocumentationTest {
         .andExpect(
             jsonPath(
                 "$.components.schemas.CreatePostRequest.required",
-                containsInAnyOrder("title", "content", "category", "author")));
+                containsInAnyOrder("title", "content", "category", "memberId")));
   }
 
   @Test
@@ -138,7 +140,7 @@ class ApiDocumentationTest {
         .andExpect(
             jsonPath(
                 "$.components.responses.PostCreateBadRequest.content['application/json'].examples.ValidationFailed.value.violations[*].field",
-                containsInAnyOrder("title", "content", "category", "author")))
+                containsInAnyOrder("title", "content", "category", "memberId")))
         .andExpect(
             jsonPath(
                 "$.components.responses.PostUpdateBadRequest.content['application/json'].examples.ValidationFailed.value.violations[*].field",
@@ -152,8 +154,8 @@ class ApiDocumentationTest {
         .andExpect(
             jsonPath("$.components.schemas.ErrorResponse.properties.data.type").value("null"))
         .andExpect(
-            jsonPath("$.components.schemas.BaseResponseListPostResponse.properties.data.items.$ref")
-                .value("#/components/schemas/PostResponse"))
+            jsonPath("$.components.schemas.BaseResponsePostListResponse.properties.data.$ref")
+                .value("#/components/schemas/PostListResponse"))
         .andExpect(
             jsonPath("$.components.schemas.BaseResponsePostResponse.properties.data.$ref")
                 .value("#/components/schemas/PostResponse"));
@@ -170,7 +172,7 @@ class ApiDocumentationTest {
             jsonPath("$.components.schemas.CreatePostRequest.properties.content.maxLength")
                 .value(10000))
         .andExpect(
-            jsonPath("$.components.schemas.CreatePostRequest.properties.author.maxLength")
+            jsonPath("$.components.schemas.CreateMemberRequest.properties.name.maxLength")
                 .value(50))
         .andExpect(
             jsonPath("$.components.schemas.UpdatePostRequest.properties.title.maxLength")

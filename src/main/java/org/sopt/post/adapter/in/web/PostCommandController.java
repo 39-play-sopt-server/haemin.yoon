@@ -35,14 +35,16 @@ public class PostCommandController {
 
   @Operation(
       summary = "게시글 생성",
-      description = "제목, 본문, 카테고리, 작성자를 입력합니다. ID와 작성 시각은 서버에서 생성하며, 성공 응답의 data는 null입니다.")
+      description =
+          "제목, 본문, 카테고리, 활성 회원 ID(memberId)를 입력합니다. ID와 작성 시각은 서버에서 생성하며, 성공 응답의 data는 null입니다.")
   @ApiResponse(responseCode = "201", description = "게시글 생성 성공")
   @ApiResponse(responseCode = "400", ref = "#/components/responses/PostCreateBadRequest")
+  @ApiResponse(responseCode = "404", ref = "#/components/responses/MemberNotFound")
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public BaseResponse<Void> createPost(@Valid @RequestBody CreatePostRequest request) {
     Category category = request.category() == null ? null : request.category().toDomain();
-    useCase.createPost(request.title(), request.content(), category, request.author());
+    useCase.createPost(request.title(), request.content(), category, request.memberId());
     return BaseResponse.success(null, "게시글이 작성되었습니다.");
   }
 

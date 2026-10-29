@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -23,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class PostCreationConcurrencyTest {
+class PostCreationConcurrencyTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
 
@@ -49,7 +50,7 @@ class PostCreationConcurrencyTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
                                     """
-                                    {"title":"post-%d","content":"본문","category":"GENERAL","author":"작성자"}
+                                    {"title":"post-%d","content":"본문","category":"GENERAL","memberId":1}
                                     """
                                         .formatted(i)))
                         .andExpect(status().isCreated());

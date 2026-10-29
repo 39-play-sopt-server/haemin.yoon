@@ -17,8 +17,10 @@ import org.junit.jupiter.api.Test;
 import org.sopt.post.application.facade.PostFacade;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.application.port.in.query.PostQueryUseCase;
+import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
+import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -36,11 +38,12 @@ import org.springframework.transaction.support.TransactionTemplate;
     })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class PostViewCountTest {
+class PostViewCountTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
   @Autowired PostCommandUseCase commands;
   @Autowired PostQueryUseCase queries;
+  @Autowired LoadPostPort reader;
   @Autowired PostFacade facade;
   @Autowired PlatformTransactionManager transactionManager;
   @PersistenceContext EntityManager entityManager;
@@ -56,7 +59,7 @@ class PostViewCountTest {
     for (int i = 0; i < 2; i++) {
       mvc.perform(get("/posts"))
           .andExpect(status().isOk())
-          .andExpect(jsonPath("$.data[0].viewCount").value(0));
+          .andExpect(jsonPath("$.data.items[0].viewCount").value(0));
     }
   }
 
@@ -78,10 +81,28 @@ class PostViewCountTest {
         entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
     statistics.clear();
 
-    Post detail = facade.getPostDetail(id);
+    var detail = facade.getPostDetail(id);
 
-    assertEquals(1, detail.getViewCount());
+    assertEquals(1, detail.viewCount());
     assertEquals(2, statistics.getPrepareStatementCount());
+  }
+
+  @Test
+  void listingReadsOwnedAuthorSnapshotsInOneQuery() {
+    commands.createPost("첫 글", "본문", Category.GENERAL, memberId("첫 회원"));
+    commands.createPost("둘째 글", "본문", Category.GENERAL, memberId("둘째 회원"));
+    var statistics =
+        entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+    statistics.clear();
+
+    var posts =
+        queries.getPosts(
+            new org.sopt.post.application.port.in.query.dto.PostListQuery(
+                null, 20, null, null, null));
+    assertEquals(
+        java.util.List.of("둘째 회원", "첫 회원"),
+        posts.posts().stream().map(post -> post.authorName()).toList());
+    assertEquals(1, statistics.getPrepareStatementCount());
   }
 
   @Test
@@ -96,9 +117,17 @@ class PostViewCountTest {
   @Test
   void directQueryDoesNotIncrementViews() {
     long id = createPost();
-    assertEquals(0, queries.getPost(id).getViewCount());
-    assertEquals(0, queries.getPost(id).getViewCount());
+    assertEquals(0, queries.getPost(id).viewCount());
+    assertEquals(0, queries.getPost(id).viewCount());
     assertEquals(0, storedCount(id));
+  }
+
+  @Test
+  void viewIncrementPreservesUpdatedAt() {
+    long id = createPost();
+    var updatedAt = queries.getPost(id).updatedAt();
+    assertEquals(updatedAt, facade.getPostDetail(id).updatedAt());
+    assertEquals(updatedAt, queries.getPost(id).updatedAt());
   }
 
   @Test
@@ -112,13 +141,13 @@ class PostViewCountTest {
   @Test
   void incrementKeepsOtherManagedPostsAvailableForDirtyChecking() {
     long id = createPost();
-    commands.createPost("다른 게시글", "다른 본문", Category.GENERAL, "작성자");
+    commands.createPost("다른 게시글", "다른 본문", Category.GENERAL, memberId("작성자"));
     long otherId = jdbc.queryForObject("SELECT MAX(id) FROM posts", Long.class);
 
     new TransactionTemplate(transactionManager)
         .executeWithoutResult(
             status -> {
-              Post other = queries.getPost(otherId);
+              Post other = reader.findById(otherId).orElseThrow();
               facade.getPostDetail(id);
               other.update("증가 후 수정", "증가 후 본문");
             });
@@ -136,9 +165,9 @@ class PostViewCountTest {
     new TransactionTemplate(transactionManager)
         .executeWithoutResult(
             status -> {
-              Post loaded = queries.getPost(id);
-              Post detail = facade.getPostDetail(id);
-              assertEquals(1, detail.getViewCount());
+              Post loaded = reader.findById(id).orElseThrow();
+              var detail = facade.getPostDetail(id);
+              assertEquals(1, detail.viewCount());
               assertEquals(1, loaded.getViewCount());
               loaded.update("증가 후 제목", "증가 후 본문");
             });
@@ -155,12 +184,12 @@ class PostViewCountTest {
     new TransactionTemplate(transactionManager)
         .executeWithoutResult(
             status -> {
-              Post loaded = queries.getPost(id);
+              Post loaded = reader.findById(id).orElseThrow();
               loaded.update("증가 전 제목", "증가 전 본문");
-              Post detail = facade.getPostDetail(id);
-              assertEquals("증가 전 제목", detail.getTitle());
-              assertEquals("증가 전 본문", detail.getContent());
-              assertEquals(1, detail.getViewCount());
+              var detail = facade.getPostDetail(id);
+              assertEquals("증가 전 제목", detail.title());
+              assertEquals("증가 전 본문", detail.content());
+              assertEquals(1, detail.viewCount());
             });
 
     assertEquals(1, storedCount(id));
@@ -218,7 +247,7 @@ class PostViewCountTest {
                 () -> {
                   ready.countDown();
                   assertTrue(start.await(10, TimeUnit.SECONDS));
-                  return facade.getPostDetail(id).getViewCount();
+                  return facade.getPostDetail(id).viewCount();
                 }));
       }
       assertTrue(ready.await(10, TimeUnit.SECONDS));
@@ -234,7 +263,7 @@ class PostViewCountTest {
   }
 
   private long createPost() {
-    commands.createPost("조회수 검증", "본문", Category.GENERAL, "작성자");
+    commands.createPost("조회수 검증", "본문", Category.GENERAL, memberId("작성자"));
     return jdbc.queryForObject("SELECT id FROM posts", Long.class);
   }
 

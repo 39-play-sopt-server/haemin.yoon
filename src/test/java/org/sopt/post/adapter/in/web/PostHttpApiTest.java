@@ -12,9 +12,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
-import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
+import org.sopt.post.application.port.out.dto.PostListCriteria;
 import org.sopt.post.domain.Category;
+import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -26,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class PostHttpApiTest {
+class PostHttpApiTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
   @Autowired LoadPostPort repository;
   @Autowired PostCommandUseCase commands;
@@ -45,7 +46,7 @@ class PostHttpApiTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"title":"제목","content":"본문","category":%s,"author":"작성자"}
+                    {"title":"제목","content":"본문","category":%s,"memberId":1}
                     """
                         .formatted(category)))
         .andExpect(status().isBadRequest())
@@ -64,7 +65,7 @@ class PostHttpApiTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"title":"제목","content":"본문","category":"%s","author":"작성자"}
+                    {"title":"제목","content":"본문","category":"%s","memberId":1}
                     """
                         .formatted(category)))
         .andExpect(status().isCreated());
@@ -72,7 +73,7 @@ class PostHttpApiTest {
     assertEquals(category, jdbc.queryForObject("SELECT category FROM posts", String.class));
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data[0].category").value(category));
+        .andExpect(jsonPath("$.data.items[0].category").value(category));
   }
 
   @Test
@@ -82,17 +83,17 @@ class PostHttpApiTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":"제목","content":"본문","category":"QUESTION","author":"작성자"}
+        {"title":"제목","content":"본문","category":"QUESTION","memberId":1}
         """))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.code").value("SUCCESS"));
-    long id = repository.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long id = repository.findAll(criteria()).getFirst().getId();
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.length()").value(1))
-        .andExpect(jsonPath("$.data[0].id").value(id))
-        .andExpect(jsonPath("$.data[0].category").value("QUESTION"));
+        .andExpect(jsonPath("$.data.items.length()").value(1))
+        .andExpect(jsonPath("$.data.items[0].id").value(id))
+        .andExpect(jsonPath("$.data.items[0].category").value("QUESTION"));
     mvc.perform(get("/posts/{id}", id))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.title").value("제목"))
@@ -116,7 +117,7 @@ class PostHttpApiTest {
     mvc.perform(get("/posts/{id}", id))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
-    mvc.perform(get("/posts")).andExpect(jsonPath("$.data").isEmpty());
+    mvc.perform(get("/posts")).andExpect(jsonPath("$.data.items").isEmpty());
   }
 
   @ParameterizedTest
@@ -126,14 +127,14 @@ class PostHttpApiTest {
         "null",
         "{",
         "{}",
-        "{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"UNKNOWN\",\"author\":\"작성자\"}"
+        "{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"UNKNOWN\",\"memberId\":1}"
       })
   void rejectsInvalidBodiesWithCommonResponse(String body) throws Exception {
     mvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content(body))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.data").isEmpty());
-    mvc.perform(get("/posts")).andExpect(jsonPath("$.data").isEmpty());
+    mvc.perform(get("/posts")).andExpect(jsonPath("$.data.items").isEmpty());
   }
 
   @Test
@@ -143,7 +144,7 @@ class PostHttpApiTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":" ","content":"본문","category":"GENERAL","author":"작성자"}
+        {"title":" ","content":"본문","category":"GENERAL","memberId":1}
         """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
@@ -156,8 +157,8 @@ class PostHttpApiTest {
   @ValueSource(
       strings = {
         "{}",
-        "{\"title\":null,\"content\":null,\"category\":null,\"author\":null}",
-        "{\"title\":\" \",\"content\":\"\\t\\n\",\"category\":null,\"author\":\"　\"}"
+        "{\"title\":null,\"content\":null,\"category\":null,\"memberId\":null}",
+        "{\"title\":\" \",\"content\":\"\\t\\n\",\"category\":null,\"memberId\":null}"
       })
   void reportsAllInvalidCreateFieldsWithoutWritingPost(String body) throws Exception {
     mvc.perform(post("/posts").contentType(MediaType.APPLICATION_JSON).content(body))
@@ -168,12 +169,12 @@ class PostHttpApiTest {
         .andExpect(jsonPath("$.violations.length()").value(4))
         .andExpect(
             jsonPath("$.violations[*].field")
-                .value(contains("author", "category", "content", "title")))
+                .value(contains("category", "content", "memberId", "title")))
         .andExpect(
             jsonPath("$.violations[*].code")
                 .value(contains("REQUIRED", "REQUIRED", "REQUIRED", "REQUIRED")))
         .andExpect(jsonPath("$.violations[*].rejectedValue").doesNotExist());
-    mvc.perform(get("/posts")).andExpect(jsonPath("$.data").isEmpty());
+    mvc.perform(get("/posts")).andExpect(jsonPath("$.data.items").isEmpty());
   }
 
   @Test
@@ -183,10 +184,10 @@ class PostHttpApiTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":"기존 제목","content":"기존 본문","category":"GENERAL","author":"작성자"}
+        {"title":"기존 제목","content":"기존 본문","category":"GENERAL","memberId":1}
         """))
         .andExpect(status().isCreated());
-    long id = repository.findAll(new PostListQuery(0, 100, null)).getFirst().getId();
+    long id = repository.findAll(criteria()).getFirst().getId();
     mvc.perform(
             put("/posts/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -264,7 +265,7 @@ class PostHttpApiTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"title":"제목","content":"본문","category":"GENERAL","author":"작성자"}
+                    {"title":"제목","content":"본문","category":"GENERAL","memberId":1}
                     """))
         .andExpect(status().isNotAcceptable())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -336,7 +337,7 @@ class PostHttpApiTest {
   }
 
   private long createStoredPost() {
-    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
+    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, memberId("작성자"));
     return jdbc.queryForObject("SELECT id FROM posts", Long.class);
   }
 
@@ -357,5 +358,9 @@ class PostHttpApiTest {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("FORBIDDEN"))
         .andExpect(content().string(not(containsString("internal secret"))));
+  }
+
+  private static PostListCriteria criteria() {
+    return new PostListCriteria(null, null, 100, null, null, null);
   }
 }

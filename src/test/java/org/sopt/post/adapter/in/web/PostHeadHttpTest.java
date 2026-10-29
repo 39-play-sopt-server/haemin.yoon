@@ -14,6 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
+import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -26,7 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
     properties =
         "spring.datasource.url=jdbc:h2:mem:post-head-http;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1")
 @ActiveProfiles("test")
-class PostHeadHttpTest {
+class PostHeadHttpTest extends MemberDatabaseSupport {
   @LocalServerPort int port;
   @Autowired PostCommandUseCase commands;
   @Autowired JdbcTemplate jdbc;
@@ -114,7 +115,7 @@ class PostHeadHttpTest {
   }
 
   private long createStoredPost() {
-    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
+    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, memberId("작성자"));
     return jdbc.queryForObject("SELECT id FROM posts", Long.class);
   }
 
