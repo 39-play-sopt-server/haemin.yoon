@@ -8,7 +8,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
-import org.sopt.post.application.port.in.query.PostListQuery;
+import org.sopt.post.application.port.in.query.dto.PostInfo;
+import org.sopt.post.application.port.in.query.dto.PostListQuery;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
 
@@ -19,16 +20,28 @@ class ConcurrentPostStorageTest {
     runConcurrently(
         worker -> {
           for (int i = 1; i <= 1000; i++) {
-            repository.save(new Post("제목", "본문", Category.GENERAL, "작성자"));
+            repository.save(new Post("제목", "본문", Category.GENERAL, member("작성자")));
           }
         });
-    var posts = new ArrayList<Post>();
-    for (int page = 0; page < 80; page++) {
-      posts.addAll(repository.findAll(new PostListQuery(page, 100, null)));
-    }
+    var posts = new ArrayList<PostInfo>();
+    var queries = new org.sopt.post.application.service.query.PostQueryService(repository);
+    org.sopt.post.application.port.in.query.dto.PostCursor cursor = null;
+    do {
+      var result = queries.getPosts(new PostListQuery(cursor, 100, null, null, null));
+      posts.addAll(result.posts());
+      cursor = result.nextCursor();
+    } while (cursor != null);
     assertEquals(8000, posts.size());
-    for (int i = 0; i < posts.size(); i++) {
-      assertEquals(i + 1L, posts.get(i).getId());
+    assertEquals(
+        java.util.stream.LongStream.rangeClosed(1, 8000).boxed().toList(),
+        posts.stream().map(PostInfo::id).sorted().toList());
+    for (int i = 1; i < posts.size(); i++) {
+      PostInfo previous = posts.get(i - 1);
+      PostInfo current = posts.get(i);
+      assertFalse(previous.createdAt().isBefore(current.createdAt()));
+      if (previous.createdAt().equals(current.createdAt())) {
+        assertTrue(previous.id() > current.id());
+      }
     }
   }
 
@@ -50,5 +63,9 @@ class ConcurrentPostStorageTest {
         future.get(15, java.util.concurrent.TimeUnit.SECONDS);
       }
     }
+  }
+
+  private static org.sopt.post.domain.PostAuthor member(String name) {
+    return new org.sopt.post.domain.PostAuthor(1L, name);
   }
 }

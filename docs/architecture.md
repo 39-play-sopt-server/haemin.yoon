@@ -48,12 +48,22 @@ flowchart LR
 
 | 요청 | 매핑 | 성공 상태 |
 | --- | --- | --- |
+| `POST /members` | 회원 생성 | 201 |
+| `DELETE /members/{id}` | 회원 소프트 삭제 | 200 |
 | `POST /posts` | `@PostMapping` | 201 |
 | `GET /posts` | `@GetMapping` | 200 |
 | `GET /posts/{id}` | `@GetMapping("/{id}")` | 200 |
 | `HEAD /posts/{id}` | `@RequestMapping(method = HEAD)` | 200 |
 | `PUT /posts/{id}` | `@PutMapping("/{id}")` | 200 |
 | `DELETE /posts/{id}` | `@DeleteMapping("/{id}")` | 200 |
+| `PUT /posts/{postId}/likes/{memberId}` | 좋아요 설정 | 200 |
+| `DELETE /posts/{postId}/likes/{memberId}` | 좋아요 취소 | 200 |
+
+좋아요는 `PostLike` 연결 엔티티로 회원과 게시글의 다대다를 표현합니다.
+`PostLikeFacade`가 트랜잭션 밖에서 재시도를 조율하고 `PostLikeCommandService`가
+게시글 잠금·관계 변경·카운터 갱신을 한 트랜잭션에서 수행합니다.
+조회 응답의 `likeCount`는 게시글 컬럼에서 읽어 목록의 추가 COUNT 쿼리를 방지합니다.
+잠금 순서·멱등성과 확장 시 제약은 [좋아요 설계](post-likes.md)를 참고하세요.
 
 JSON 본문은 `@RequestBody`로 요청 record에 바인딩한 뒤 생성·수정 요청에 `@Valid`를 적용합니다. 경로 ID는
 `@PathVariable("id")`로 받습니다. 수정은 제목·본문을 모두 전달하는 기존 계약을 따릅니다.
@@ -117,7 +127,8 @@ Boot 기본 HTML/Map 대신 같은 응답 객체를 사용하고 서버의 오�
 
 `spring-boot-starter-validation`과 요청 DTO의 `@NotBlank`·`@NotNull`, 생성·수정 컨트롤러의 `@Valid`로
 HTTP 입력의 필수값을 검사합니다. 여러 필드 오류를 모아 `VALIDATION_FAILED`로 반환하며 유스케이스 호출을 막습니다.
-생성 요청은 title·content·author에 NotBlank, category에 NotNull을 적용합니다.
+생성 요청은 title·content에 NotBlank, category에 NotNull, memberId에 NotNull·Positive를 적용합니다.
+회원 생성·삭제와 작성자 연관관계는 [회원과 게시글 작성자](members.md)를 참고하세요.
 수정 요청은 title·content에 NotBlank, 필수 version에 NotNull·PositiveOrZero를 적용합니다.
 정수 필드로 보낸 소수는 Jackson에서 절삭하지 않고 INVALID_REQUEST로 거부합니다.
 JSON enum 입력은 공개 문자열 값만 허용하도록 전역 Jackson 설정에서 숫자 순번 변환을 금지합니다.
@@ -128,16 +139,16 @@ JSON enum 입력은 공개 문자열 값만 허용하도록 전역 Jackson 설�
 게시글 조회의 404보다 입력 검증의 400을 먼저 반환합니다. 빈 JSON 객체 `{}`도 필수값 검증 대상이며,
 빈 본문·JSON의 `null`·깨진 JSON은 역직렬화 또는 필수 본문 처리 단계의 INVALID_REQUEST입니다.
 도메인의 검증도 유지해 HTTP를 거치지 않는 호출에서도 잘못된 게시글 생성·수정을 거부합니다.
-제목·본문·작성자에 PostgreSQL 텍스트로 저장할 수 없는 NUL(U+0000)이 포함되면
+제목·본문에 PostgreSQL 텍스트로 저장할 수 없는 NUL(U+0000)이 포함되면
 도메인에서 거부하고 HTTP 400·NUL_CHARACTER_NOT_ALLOWED를 반환합니다. 검증 목록은 빈 배열입니다.
 생성·수정에 같은 규칙을 적용하며 수정 거부 시 기존 제목·본문과 편집 버전은 유지합니다.
 문자를 제거하거나 치환하지 않으며, 줄바꿈·탭·이모지와 문자 그대로의 `\u0000` 텍스트는 보존합니다.
-길이 상한은 제목 200, 본문 10,000, 작성자 50이며 최대값까지 허용하고 초과 입력은 거부합니다.
+길이 상한은 제목 200, 본문 10,000이며 최대값까지 허용하고 초과 입력은 거부합니다.
 `Post`의 길이 상수가 정책을 정의하고 도메인 검증과 요청 DTO의 `@Size`가 같은 상수를 사용합니다.
 길이는 Java `String.length()`와 `@Size`에 맞춰 UTF-16 코드 단위로 계산합니다.
 예를 들어 일반 한글은 1, 보충 문자 영역의 이모지는 2로 계산하며, 공백을 제거하거나 내용을 잘라 저장하지 않습니다.
 생성·수정 모두 검증하며, 수정 검증 실패 시 제목·본문 전체를 보존합니다.
-HTTP 외 호출에서도 초과 입력은 TITLE_TOO_LONG·CONTENT_TOO_LONG·AUTHOR_TOO_LONG으로 거부합니다.
+HTTP 외 호출에서도 초과 입력은 TITLE_TOO_LONG·CONTENT_TOO_LONG으로 거부합니다.
 길이 정책 변경은 게시글 도메인의 상수를 수정하고 경계값 테스트·문서를 함께 갱신합니다.
 다른 도메인의 길이 정책은 해당 도메인에 둡니다.
 DB의 TEXT 타입과 기존 데이터는 유지하므로 이 제한은 새 생성·수정 입력에 적용됩니다.
@@ -193,7 +204,7 @@ Post.update는 제목·본문을 모두 검증한 뒤 필드를 바꾸므로 검
 `PostResponse.from(Post)`와 `PostCategory`의 변환 메서드를 통해 DTO와 도메인을 연결합니다.
 웹 어댑터가 만든 조회 응답 DTO와 목록은 엔티티와 분리되어 이후 변경·삭제로 바뀌지 않습니다.
 
-`Post`가 테이블 매핑과 유효성 검증을 함께 담당하며, 별도 엔티티 변환은 없습니다. 카테고리는 문자열, 제목·본문·작성자는 TEXT로 저장합니다.
+`Post`가 테이블 매핑과 유효성 검증을 함께 담당하며, 별도 엔티티 변환은 없습니다. 카테고리는 문자열, 제목·본문은 TEXT로 저장하고 작성자는 필수 Member 연관관계로 저장합니다.
 작성 시각은 기존 LocalDateTime 의미를 유지하며 DB의 마이크로초 정밀도에 맞춥니다.
 
 `PostPersistenceAdapter`가 `PostRepository`를 사용합니다.
@@ -217,41 +228,103 @@ ID는 PostgreSQL identity 컬럼이 자동 생성해 서버 재시작이나 다�
 상세 조회는 조회수 UPDATE의 반영 행 수가 0이면 POST_NOT_FOUND를 반환합니다. 수정·삭제는 대상 조회로 존재 여부를 확인합니다.
 
 스키마는 Flyway의 버전별 SQL로 관리하고 운영·테스트의 JPA는 ddl-auto=validate로 매핑을 검증합니다.
-V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스, V4는 편집 버전 추가를 담당합니다.
+V1은 테이블 생성, V2는 조회수 컬럼, V3는 `(category, id)` 인덱스, V4는 편집 버전, V5는 수정일, V6은 회원과 게시글 작성자 연결, V7은 최신순 목록 인덱스를 담당합니다.
 비밀번호는 환경변수로 설정합니다.
 메모리 저장소는 src/test 아래에서 단위 테스트 대역으로만 사용합니다.
 대역은 같은 엔티티 참조를 반환해 변경 결과를 관찰하며, JPA 트랜잭션·변경 감지·롤백은 실제 DB 통합 테스트로 검증합니다.
 엔티티의 ID·필드 복원은 JPA에 맡기며, 수동 ID 생성자나 저장소 복원용 팩터리는 제공하지 않습니다.
 
-## 목록 페이지네이션과 카테고리 조회
+## 무한 스크롤과 동적 검색
 
-`GET /posts?page=0&size=20&category=QUESTION`으로 한 페이지를 조회합니다.
-page는 0부터 시작하고 기본값은 0, size의 기본값은 20이며 1~100을 허용합니다.
-숫자가 아닌 값과 int 범위 밖의 숫자, 알 수 없는 category는 HTTP 400과 INVALID_REQUEST입니다.
-음수 page·허용 범위 밖 size·int 범위를 넘는 `page * size`는 INVALID_PAGINATION입니다.
-JPA의 offset이 int이므로 곱셈은 long으로 검사하여 오버플로와 저장소 예외를 방지합니다.
-생략하거나 빈 값으로 보낸 page·size는 기본값을 사용하고, category는 전체 분류를 조회합니다.
+첫 요청은 `GET /posts?size=20&authorId=1&category=QUESTION&keyword=스프링`으로 보내고 이후 응답의 nextCursor를
+`GET /posts?size=20&authorId=1&category=QUESTION&keyword=스프링&cursor=...`에 그대로 전달합니다.
+keyword는 선택 사항이며 제목의 대소문자를 구분하지 않는 부분 일치 검색입니다.
+앞뒤 공백을 제거하고 빈 검색어는 전체 목록으로 처리합니다. 정규화 후 최대 200 UTF-16 코드 단위이며 NUL은 거부합니다.
+본문·작성자 이름은 검색하지 않습니다. `%`, `_`, `!`, 역슬래시 등은 입력한 문자 그대로 검색합니다.
+size는 기본 20, 허용 범위는 1~100이며 category 생략·빈 값은 전체 분류입니다.
+authorId는 작성자 회원 ID의 양수 필터이며 생략하면 모든 작성자를 조회합니다.
+존재하지 않는 ID는 빈 목록이며 소프트 삭제된 회원의 기존 게시글도 검색할 수 있습니다.
+작성자 ID·카테고리·제목을 각각 생략하거나 원하는 조합으로 전달할 수 있습니다.
+`page` 기반 이동은 제공하지 않습니다. 기존 배열 응답을 사용하던 클라이언트는 `data.items`를 읽도록 변경해야 합니다.
 
-웹 어댑터는 외부 PostCategory를 도메인 Category로 변환하고,
-`PostListQuery`가 HTTP 외 호출에서도 조회 범위를 검증합니다.
-입력·출력 포트는 이 조회 조건을 공유하며 Spring Data 타입에 의존하지 않습니다.
-`PostPersistenceAdapter`에서만 PageRequest로 변환합니다.
-카테고리 조건 유무에 따라 저장소 메서드를 선택하고,
-DB에서 WHERE → ORDER BY id ASC → OFFSET/LIMIT 순서로 처리합니다.
-전체 데이터를 메모리에 올려 자르지 않으며 ID의 고유한 순서로 페이지 경계를 정합니다.
-전체 조회는 PK, 카테고리 조회는 V3의 `(category, id)` 복합 인덱스를 활용할 수 있습니다.
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "게시글 목록을 조회했습니다.",
+  "data": {
+    "items": [],
+    "hasNext": false,
+    "nextCursor": null
+  },
+  "violations": []
+}
+```
 
-기존 `data` 배열 계약을 유지하고 총 개수·총 페이지 수는 제공하지 않습니다.
-요청한 페이지에 결과가 없으면 HTTP 200과 빈 배열을 반환합니다.
-List를 반환하는 저장소 메서드를 사용하므로 총 개수를 위한 COUNT 쿼리는 실행하지 않습니다.
-페이지네이션·필터 목록 조회 모두 조회수를 변경하지 않습니다.
-`PostListingTest`는 기본값·경계·카테고리별 필터 적용 순서·빈 결과·잘못된 입력을 실제 H2 DB와 HTTP 계층에서 검증합니다.
+조회 결과를 `items` 뒤에 이어 붙이고 hasNext가 true일 때만 nextCursor로 다음 요청을 보냅니다.
+마지막 목록이나 빈 결과는 hasNext=false, nextCursor=null입니다. 마지막 커서가 null이라고
+첫 요청을 반복해서는 안 됩니다. 총 개수·총 페이지 수는 제공하지 않습니다.
+작성자 ID·카테고리·검색어를 바꾸면 items와 cursor를 초기화해 첫 요청부터 다시 시작합니다.
+앞뒤 공백 제거 후 같은 검색어는 커서를 재사용할 수 있지만 대소문자를 포함해 문자열을 바꾸면 다시 시작합니다.
 
-앞으로 작성자 필터를 추가한다면 PostListQuery와 게시글 저장소의 검색 조건을 확장합니다.
-조건 조합이 많아져 메서드가 반복되면 그때 Specification이나 전용 검색 저장소를 검토합니다.
-회원 목록은 회원 도메인에 조회 조건을 두고, 실제로 공유되는 계약이 생길 때 공통화를 검토합니다.
-현재 offset 방식은 깊은 페이지의 비용과 페이지 사이 삭제에 따른 결과 이동이 있습니다.
-대량 데이터에서 이 문제가 중요해지면 ID 기반 커서 페이지네이션을 별도 계약으로 도입합니다.
+`PostListQuery`는 크기와 커서의 작성자 ID·카테고리·검색어 일치를 검증합니다.
+`PostSearchKeyword`는 목록 조건과 커서가 공유하는 정규화·길이·NUL 검증을 담당합니다.
+`PostCursor`는 마지막으로 반환한 글의 생성일·ID·카테고리·검색어·작성자 ID를 담으며 경계 글이나 회원 엔티티의 존재 여부를 재조회하지 않습니다.
+입력·출력 포트는 Spring Data나 웹 인코딩에 의존하지 않습니다.
+`PostCursorCodec`이 웹 어댑터에서 버전·생성일·ID·카테고리·검색어를 URL 안전 Base64 문자열로 변환합니다.
+작성자 필터가 없으면 비검색 버전 1·제목 검색 버전 2를 유지하며, 작성자 필터가 있으면 버전 3으로 작성자 ID와 선택적 검색어를 보존합니다.
+기존 버전 1·2 커서도 계속 사용할 수 있습니다. 검색어의 구분자 문자도 손실 없이 보존합니다.
+카테고리는 PostCategory의 외부 값과 명시적 도메인 매핑을 사용하므로 도메인 Enum 이름을 토큰에 직접 기록하지 않습니다.
+클라이언트는 토큰을 해석하거나 조립하지 않고 응답 값을 그대로 전달합니다.
+이 토큰은 조회 경계를 표현하며 인증·인가 수단은 아닙니다.
+형식·버전·길이가 잘못된 커서, 유효하지 않은 시각·ID, 요청과 작성자 ID·카테고리·검색어가 다른 커서는
+HTTP 400 INVALID_CURSOR입니다. 잘못된 size는 INVALID_PAGINATION 또는 숫자 바인딩의 INVALID_REQUEST입니다.
+
+저장소는 작성자 ID·카테고리·제목 검색을 적용하고 아래 경계보다 오래된 글을 생성일·ID 내림차순으로 조회합니다.
+
+```sql
+(created_at, id) < (:createdAt, :id)
+```
+
+생성일·ID를 튜플로 비교해 복합 인덱스의 검색 조건에 경계를 적용합니다. OR 필터로 이전 구간을 재탐색하지 않도록 합니다.
+`PostListingRepository` 프래그먼트의 구현이 실제 전달된 조건만 고정 HQL 절로 조합합니다.
+작성자 ID는 `p.member.id = :authorId`, 카테고리는 `p.category = :category`로 추가하고 파라미터로 바인딩합니다.
+조합마다 저장소 메서드를 늘리거나 `:param IS NULL OR ...`로 검색 조건을 무력화하지 않습니다.
+사용자 입력은 모두 파라미터로 바인딩하고 제목 검색은 `ILIKE ... ESCAPE '!'`를 사용합니다.
+검색어의 `!`, `%`, `_`를 이스케이프해 와일드카드가 아닌 문자로 비교합니다.
+`PostPersistenceAdapter`는 조회를 프래그먼트에 위임하며 offset 없이 최대 size+1개를 읽습니다.
+`PostQueryService`가 추가 한 건으로 hasNext를 판단하고 실제 반환할 size개 중 마지막 글로
+nextCursor를 만듭니다. 확인용 한 건을 커서로 쓰지 않으므로 다음 글을 누락하지 않습니다.
+조회 결과는 `PostListResult`, 웹 표현은 `PostListResponse`가 담당합니다.
+회원은 fetch join으로 함께 읽어 작성자 이름의 N+1 조회를 방지합니다.
+COUNT 쿼리는 실행하지 않으며 목록 조회는 조회수를 변경하지 않습니다.
+V7의 `(created_at DESC, id DESC)`, `(category, created_at DESC, id DESC)` 인덱스를 유지합니다.
+
+커서 경계는 값으로 저장하므로 경계 글이 삭제돼도 다음 목록을 조회할 수 있습니다.
+이전 목록의 삭제나 더 최신인 새 글 추가로 offset이 이동해 중복·누락되는 문제를 피합니다.
+이미 지나간 경계보다 최신인 새 글은 처음부터 새로고침할 때 표시합니다.
+조회 사이에 삭제된 글은 다음 결과에서 제외됩니다. 목록 전체의 시점 스냅샷을 보장하지 않으며,
+생성 시각을 소급 지정해 경계보다 오래된 글을 추가하면 이후 목록에 포함될 수 있습니다.
+본문 편집은 createdAt을 변경하지 않으므로 정렬에 영향을 주지 않습니다.
+
+V8은 PostgreSQL의 pg_trgm 확장과 `GIN(title gin_trgm_ops)` 인덱스를 추가합니다.
+일반 B-tree가 효율적으로 처리하지 못하는 `ILIKE '%검색어%'`를 기존 부분 일치 의미 그대로 가속합니다.
+V9은 `(member_id, created_at DESC, id DESC)`와 `(member_id, category, created_at DESC, id DESC)` 인덱스를 추가합니다.
+기존 단일 member_id 인덱스는 외래 키 검사용으로 유지합니다.
+
+인덱스가 있어도 모든 쿼리에서 인덱스 선택을 강제하지 않습니다. 작은 테이블, 매우 흔한 검색어,
+trigram을 추출할 수 없는 1~2자 또는 특수문자 위주 검색은 순차·전체 인덱스 스캔이 더 유리하거나 필요할 수 있습니다.
+기존 짧은 검색어·특수문자 검색을 계속 허용하며, GIN의 저장 공간·쓰기 비용이 추가됩니다.
+[PostgreSQL pg_trgm 문서](https://www.postgresql.org/docs/current/pgtrgm.html)의 제약을 따릅니다.
+
+`PostCursorQueryPlanTest`는 10만 건에서 일부 글만 매칭되는 영어·한글 검색어로 실제 Hibernate SQL을 실행합니다.
+GIN 인덱스를 트랜잭션 안에서 제거한 기준선을 측정하고 DDL을 롤백한 뒤 같은 SQL을 다시 실행합니다.
+인덱스 없이 10만 행 검사, GIN 사용 시 100행 이하 검사라는 동작을 실행 시간·강제 플래너 설정 없이 검증합니다.
+별도로 작성자·카테고리 커서 쿼리의 복합 인덱스 경계 검색을 검증합니다.
+
+앞으로 다른 게시글 검색 조건을 추가한다면 PostListQuery·PostCursor·목록 프래그먼트를 함께 확장하고
+커서 버전과 적절한 인덱스를 검토합니다. 전역이나 회원 도메인에 게시글 검색 정책을 추가하지 않습니다.
+현재는 게시글 전용 조회 계약만 두며 다른 도메인에 범용 커서 프레임워크를 미리 도입하지 않습니다.
 
 ## 조회수
 
@@ -291,12 +364,12 @@ HTTP 상세 조회는 `PostFacade.getPostDetail()`을 호출합니다. Facade는
 실행 방법과 검증 범위는 [PostgreSQL 통합 테스트](postgresql-tests.md)를 참고하세요.
 벌크 UPDATE 전 `flushAutomatically = true`로 대기 중인 변경을 반영하고,
 영속성 어댑터에서 `EntityManager.getReference()`로 대상 참조를 얻고,
-해당 게시글만 `EntityManager.refresh()`로 다시 읽습니다.
+이미 읽은 게시글만 `EntityManager.refresh()`로 다시 읽습니다. 아직 로드하지 않은 참조는 다음 단건 조회에서 회원과 함께 읽습니다.
 참조를 얻을 때 미리 조회하지 않으므로 일반 상세 열람은 UPDATE 1회와 SELECT 1회로 처리합니다.
 전체 영속성 컨텍스트를 비우지 않으므로, 같은 트랜잭션에서 이미 조회한 다른 엔티티와
 대상 게시글 모두 이후 수정이 변경 감지로 저장됩니다.
 `refresh()`는 대상의 메모리 값을 DB 값으로 덮어쓰므로 UPDATE 전 flush 순서를 유지해야 합니다.
-현재는 게시글에 연관관계가 없으며, 향후 `CascadeType.REFRESH`를 추가하면 연관 엔티티까지
+회원 연관관계에는 cascade를 적용하지 않습니다. 향후 `CascadeType.REFRESH`를 추가하면 연관 엔티티까지
 갱신 범위가 넓어지는지 함께 검토해야 합니다.
 `view_count`는 `updatable = false`로 일반 엔티티 UPDATE에서 제외하므로,
 오래된 엔티티로 제목·본문을 수정해도 다른 요청이 증가시킨 조회수를 덮어쓰지 않습니다.
@@ -360,16 +433,17 @@ DB_PASSWORD는 빈 값입니다. 환경변수로 실제 연결·인증 설정을
 ./gradlew bootRun
 ```
 
-게시글 생성 예시:
+먼저 `POST /members`에 `{"name":"작성자"}`를 보내고 응답의 회원 ID를 확인합니다.
+아래 memberId에는 실제 생성된 회원 ID를 전달합니다. 게시글 생성 예시:
 
 ```bash
 curl -i http://localhost:8080/posts \
   -H 'Content-Type: application/json' \
-  -d '{"title":"첫 게시글","content":"본문","category":"GENERAL","author":"작성자"}'
+  -d '{"title":"첫 게시글","content":"본문","category":"GENERAL","memberId":1}'
 ```
 
-생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data 배열에서 생성된 ID를 확인합니다. 기본적으로 첫 20건을 반환합니다.
-목록은 ID 오름차순이며, 카테고리는 GENERAL·QUESTION·INFORMATION 중 하나입니다.
+생성 응답은 201이며 data는 null입니다. `GET /posts` 응답의 data.items 배열에서 생성된 ID를 확인합니다. 기본적으로 첫 20건을 반환합니다.
+목록은 생성일 내림차순, 동일 생성일은 ID 내림차순이며, 카테고리는 GENERAL·QUESTION·INFORMATION 중 하나입니다.
 `GET /posts/{id}`로 단건 조회하고, `PUT /posts/{id}`에는 아래 JSON 본문을 보냅니다.
 version은 예시의 0을 고정해서 쓰지 않고 실제 조회 응답에서 읽은 값을 전달합니다.
 

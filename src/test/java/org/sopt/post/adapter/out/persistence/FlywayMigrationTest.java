@@ -21,7 +21,7 @@ class FlywayMigrationTest {
     String url = existingDatabase();
     Flyway flyway = flyway(url);
     flyway.baseline();
-    assertEquals(3, flyway.migrate().migrationsExecuted);
+    assertEquals(10, flyway.migrate().migrationsExecuted);
     flyway.validate();
     assertOriginalPost(url);
     try (var connection = DriverManager.getConnection(url, "sa", "");
@@ -41,14 +41,49 @@ class FlywayMigrationTest {
       assertTrue(rows.next());
       assertEquals("4", rows.getString(1));
       assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("5", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("6", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("7", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("8", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("9", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("10", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("11", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
       assertFalse(rows.next());
     }
     try (var connection = DriverManager.getConnection(url, "sa", "");
         var statement = connection.createStatement();
-        var rows = statement.executeQuery("SELECT view_count, version FROM posts")) {
+        var rows =
+            statement.executeQuery(
+                "SELECT view_count, version, created_at, updated_at, like_count FROM posts")) {
       assertTrue(rows.next());
       assertEquals(0, rows.getLong(1));
       assertEquals(0, rows.getLong(2));
+      assertEquals(0, rows.getLong("like_count"));
+      assertNotNull(rows.getTimestamp("updated_at"));
+      assertEquals(rows.getTimestamp("created_at"), rows.getTimestamp("updated_at"));
+    }
+    try (var connection = DriverManager.getConnection(url, "sa", "");
+        var statement = connection.createStatement();
+        var rows =
+            statement.executeQuery(
+                "SELECT p.author_name, m.name FROM posts p JOIN members m ON m.id = p.member_id")) {
+      assertTrue(rows.next());
+      assertEquals("기존 작성자", rows.getString(1));
+      assertEquals(rows.getString(1), rows.getString(2));
     }
     assertEquals(0, flyway.migrate().migrationsExecuted);
   }
@@ -57,7 +92,7 @@ class FlywayMigrationTest {
     return Flyway.configure()
         .dataSource(url, "sa", "")
         .defaultSchema("public")
-        .locations("classpath:db/migration")
+        .locations("classpath:db/migration", "classpath:db/h2")
         .baselineVersion("1")
         .baselineOnMigrate(false)
         .load();
@@ -92,11 +127,11 @@ class FlywayMigrationTest {
   private void assertOriginalPost(String url) throws Exception {
     try (var connection = DriverManager.getConnection(url, "sa", "");
         var statement = connection.createStatement();
-        var rows = statement.executeQuery("SELECT title, content, author FROM posts")) {
+        var rows = statement.executeQuery("SELECT title, content FROM posts")) {
       assertTrue(rows.next());
       assertEquals("기존 제목", rows.getString(1));
       assertEquals("기존 본문", rows.getString(2));
-      assertEquals("기존 작성자", rows.getString(3));
+
       assertFalse(rows.next());
     }
   }

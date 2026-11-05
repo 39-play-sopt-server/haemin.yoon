@@ -11,11 +11,11 @@ Spring Boot HTTP 서버 기준으로 구현 위치와 검증 방법을 정리합
 | Spring 객체 관리 | Main의 컴포넌트 스캔, 서비스·저장소의 생성자 주입 | PostHttpApiTest의 실제 Spring 컨텍스트 |
 | 게시글 작성·목록·단건·수정·삭제 | PostCommandController와 PostQueryController의 `/posts` HTTP 매핑 | PostHttpApiTest |
 | 빈 제목·본문 금지 | @Valid 요청 DTO 검증 + Post의 생성·수정 검증 | PostCommandQueryServiceTest, PostCommandQueryControllerTest, PostHttpApiTest |
-| 입력 길이 제한 | Post의 제목 200·본문 10,000·작성자 50, 도메인과 DTO가 동일 상한 적용 | PostLengthValidationTest, PostLengthHttpTest, ApiDocumentationTest |
+| 입력 길이 제한 | Post의 제목 200·본문 10,000, Member의 이름 50, 도메인과 DTO가 동일 상한 적용 | PostLengthValidationTest, PostLengthHttpTest, ApiDocumentationTest |
 | 필드별 입력 오류 | VALIDATION_FAILED와 정렬된 violations 목록, 입력값·내부 메시지 비노출 | PostHttpApiTest, GlobalExceptionHandlerTest |
 | 필수 카테고리·작성자와 작성 시각 | Category와 Post, 요청·응답 DTO 변환 | 서비스·HTTP 테스트 |
-| 목록 페이지네이션 | PostListQuery의 범위 검증, DB OFFSET/LIMIT, 기본 page=0·size=20, size 최대 100 | PostListingTest |
-| 카테고리별 목록 | 선택적 category 필터링 후 페이지 조회, V3의 category·id 인덱스 | PostListingTest, FlywayMigrationTest |
+| 목록 페이지네이션 | PostListQuery의 크기·커서 검증, DB 키셋 조회·size+1, 기본 size=20·최대 100 | PostListingTest |
+| 카테고리별 목록 | 선택적 category 필터링 후 커서 목록 조회, V7의 category·created_at·id 인덱스 | PostListingTest, FlywayMigrationTest |
 | 동시 생성·상세 조회 | 기존 DB identity와 조회수 원자적 UPDATE·상세 트랜잭션 유지, 동시성 검증 보강 | PostCreationConcurrencyTest의 HTTP 생성 40건, PostViewCountTest의 상세 조회 40건 및 반환값 1~40 |
 | 실제 PostgreSQL 검증 | 임시 컨테이너의 동시 생성·조회, 수정 교차 실행, 행별 잠금·롤백, Flyway 전환 | postgresTest의 PostgreSqlPostIntegrationTest |
 | 오래된 편집·동시 수정 충돌 | 필수 예상 버전과 @Version, 충돌 시 409·CONFLICT, 조회수와 편집 버전 분리 | PostVersionHttpTest, PostgreSqlPostIntegrationTest, ErrorHttpIntegrationTest |
@@ -66,6 +66,23 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 - 작성 시각은 실행 환경의 로컬 시간을 사용하며 Clock 주입은 적용하지 않았습니다.
 - 성공 코드는 SUCCESS 고정이며 SuccessCode Enum, 중첩 error 객체, 외부 ProblemDetail 응답은 도입하지 않았습니다.
 - requestId·traceId와 로그 연동, 인증·인가, 요청 횟수 제한 기능은 구현하지 않았습니다.
-- offset 페이지네이션은 동시 삭제 시 페이지 사이 결과 이동을 허용하고 총 개수·총 페이지 수를 제공하지 않습니다.
+- 커서 기반 무한 스크롤은 총 개수·총 페이지 수와 임의 페이지 이동을 제공하지 않습니다. 최신 글 확인은 첫 목록부터 다시 조회합니다.
 - PostgreSQL의 동시성 정합성·행별 잠금·롤백을 자동 검증하지만, 운영 규모 부하·잠금 대기 측정은 별도 검증이 필요합니다.
-- 필드별 검증 목록은 생성·수정 요청 본문에 적용합니다. 길이는 UTF-16 코드 단위이며 기존 DB의 대형 본문은 축약하지 않습니다. 경로 ID의 양수 제약은 추가하지 않았습니다.
+- 필드별 검증 목록은 생성·수정 요청 본문에 적용합니다. 길이는 UTF-16 코드 단위이며 기존 DB의 대형 본문은 축약하지 않습니다. 기존 CRUD 경로 ID에는 양수 제약을 추가하지 않았으며 좋아요 경로 ID에는 적용합니다.
+
+## 3주차 회원 시스템
+
+| 요구사항 | 구현 | 검증 |
+| --- | --- | --- |
+| 공통 생성일·수정일 | BaseEntity, V5 | PostDatabaseTest |
+| 회원 생성·삭제 API | POST /members, DELETE /members/{id}, 소프트 삭제 | MemberHttpApiTest, MemberTest |
+| 게시글의 필수 Member 참조와 작성자 이름 | Post.member, memberId 입력, author 응답, V6 | 회원 HTTP·PostgreSQL 테스트, 목록 쿼리 검증 |
+| 최신순 페이지네이션 | cursor·size 무한 스크롤, createdAt DESC·id DESC, V7 인덱스 | PostListingTest, PostgreSqlPostIntegrationTest |
+| 제목 검색 | keyword 부분 일치·대소문자 무시, 특수문자 리터럴 처리, 카테고리·커서와 조합 | PostTitleSearchTest, PostCursorCodecTest, PostgreSqlPostIntegrationTest |
+| 제목 검색 인덱스 | V8의 pg_trgm GIN, 선택적 검색어의 인덱스 전후 스캔량 검증 | PostCursorQueryPlanTest |
+| 동적 검색 | 작성자 ID·카테고리·제목 조건 조합, V9 복합 인덱스, 커서 필터 일치 | PostDynamicSearchTest, PostgreSqlPostIntegrationTest, PostCursorQueryPlanTest |
+| 좋아요·취소와 다대다 | PostLike 연결 엔티티, 회원·게시글 유일 제약, 멱등 PUT·DELETE, 조회 응답 likeCount, V10 | PostLikeHttpTest |
+| 좋아요 동시성·데드락 | 게시글 우선 잠금, 관계·카운터 단일 트랜잭션, 새 트랜잭션 재시도·시간 초과 | PostLikeConcurrencyTest, PostLikeFacadeTest |
+
+[회원 API와 데이터 전환 정책](members.md)을 참고하세요.
+[좋아요 API와 동시성 설계](post-likes.md)도 참고하세요.

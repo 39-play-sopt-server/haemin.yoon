@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
+import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -21,7 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class PostLengthHttpTest {
+class PostLengthHttpTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
   @Autowired PostCommandUseCase commands;
   @Autowired JdbcTemplate jdbc;
@@ -38,7 +39,7 @@ class PostLengthHttpTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":"%s","content":"본문","category":"GENERAL","author":"작성자"}
+        {"title":"%s","content":"본문","category":"GENERAL","memberId":1}
         """
                         .formatted("😀".repeat(100))))
         .andExpect(status().isCreated());
@@ -61,20 +62,19 @@ class PostLengthHttpTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"title,201", "content,10001", "author,51"})
+  @CsvSource({"title,201", "content,10001"})
   void oversizedCreateReturnsFieldViolationWithoutSaving(String field, int length)
       throws Exception {
     String title = field.equals("title") ? "가".repeat(length) : "제목";
     String content = field.equals("content") ? "가".repeat(length) : "본문";
-    String author = field.equals("author") ? "가".repeat(length) : "작성자";
     mvc.perform(
             post("/posts")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":"%s","content":"%s","category":"GENERAL","author":"%s"}
+        {"title":"%s","content":"%s","category":"GENERAL","memberId":1}
         """
-                        .formatted(title, content, author)))
+                        .formatted(title, content)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
         .andExpect(jsonPath("$.violations.length()").value(1))
@@ -86,7 +86,7 @@ class PostLengthHttpTest {
   @ParameterizedTest
   @CsvSource({"title,201", "content,10001"})
   void oversizedUpdatePreservesStoredPost(String field, int length) throws Exception {
-    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
+    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, memberId("작성자"));
     long id = jdbc.queryForObject("SELECT id FROM posts", Long.class);
     String title = field.equals("title") ? "가".repeat(length) : "변경 제목";
     String content = field.equals("content") ? "가".repeat(length) : "변경 본문";
@@ -112,21 +112,20 @@ class PostLengthHttpTest {
   void maximumLengthsAreAcceptedAndListingKeepsFullContent() throws Exception {
     String title = "제".repeat(200);
     String content = "본".repeat(10000);
-    String author = "작".repeat(50);
     mvc.perform(
             post("/posts")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-        {"title":"%s","content":"%s","category":"GENERAL","author":"%s"}
+        {"title":"%s","content":"%s","category":"GENERAL","memberId":1}
         """
-                        .formatted(title, content, author)))
+                        .formatted(title, content)))
         .andExpect(status().isCreated());
     mvc.perform(get("/posts"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data[0].title").value(title))
-        .andExpect(jsonPath("$.data[0].content").value(content))
-        .andExpect(jsonPath("$.data[0].author").value(author));
+        .andExpect(jsonPath("$.data.items[0].title").value(title))
+        .andExpect(jsonPath("$.data.items[0].content").value(content))
+        .andExpect(jsonPath("$.data.items[0].author").value("작성자"));
     long id = jdbc.queryForObject("SELECT id FROM posts", Long.class);
     mvc.perform(
             put("/posts/{id}", id)

@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,23 +15,24 @@ import org.sopt.post.adapter.in.web.dto.PostCategory;
 import org.sopt.post.adapter.in.web.dto.request.CreatePostRequest;
 import org.sopt.post.adapter.out.persistence.InMemoryPostRepository;
 import org.sopt.post.application.facade.PostFacade;
-import org.sopt.post.application.port.in.query.PostListQuery;
+import org.sopt.post.application.port.in.query.dto.PostListQuery;
 import org.sopt.post.application.service.command.PostCommandService;
 import org.sopt.post.application.service.query.PostQueryService;
-import org.sopt.post.domain.Post;
+import org.sopt.support.MemberUnitSupport;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-class PostCommandQueryControllerTest {
+class PostCommandQueryControllerTest extends MemberUnitSupport {
   private final InMemoryPostRepository repository = new InMemoryPostRepository();
   private final PostCommandController commands =
-      new PostCommandController(new PostCommandService(repository, repository));
+      new PostCommandController(new PostCommandService(repository, repository, memberQueries));
   private final PostQueryController queries =
       new PostQueryController(
           new PostQueryService(repository),
           new PostFacade(
-              new PostCommandService(repository, repository), new PostQueryService(repository)));
+              new PostCommandService(repository, repository, memberQueries),
+              new PostQueryService(repository)));
   private MockMvc mvc;
 
   @BeforeEach
@@ -47,15 +47,14 @@ class PostCommandQueryControllerTest {
     return Stream.of(
         Arguments.of("", "INVALID_REQUEST"),
         Arguments.of(
-            "{\"title\":\"\",\"content\":\"본문\",\"category\":\"GENERAL\",\"author\":\"작성자\"}",
+            "{\"title\":\"\",\"content\":\"본문\",\"category\":\"GENERAL\",\"memberId\":1}",
             "VALIDATION_FAILED"),
         Arguments.of(
-            "{\"title\":\"제목\",\"content\":\"\",\"category\":\"GENERAL\",\"author\":\"작성자\"}",
+            "{\"title\":\"제목\",\"content\":\"\",\"category\":\"GENERAL\",\"memberId\":1}",
             "VALIDATION_FAILED"),
+        Arguments.of("{\"title\":\"제목\",\"content\":\"본문\",\"memberId\":1}", "VALIDATION_FAILED"),
         Arguments.of(
-            "{\"title\":\"제목\",\"content\":\"본문\",\"author\":\"작성자\"}", "VALIDATION_FAILED"),
-        Arguments.of(
-            "{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"GENERAL\",\"author\":\"\"}",
+            "{\"title\":\"제목\",\"content\":\"본문\",\"category\":\"GENERAL\",\"memberId\":null}",
             "VALIDATION_FAILED"));
   }
 
@@ -67,7 +66,7 @@ class PostCommandQueryControllerTest {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value(code))
         .andExpect(jsonPath("$.data").isEmpty());
-    assertTrue(queries.getPosts(0, 100, null).data().isEmpty());
+    assertTrue(queries.getPosts(null, 100, null, null, null).data().items().isEmpty());
   }
 
   @Test
@@ -96,7 +95,7 @@ class PostCommandQueryControllerTest {
   void responseSnapshotsRemainUnchangedAfterHttpMutations() throws Exception {
     createPost();
     var original = queries.getPost(1).getBody().data();
-    var list = queries.getPosts(0, 100, null).data();
+    var list = queries.getPosts(null, 100, null, null, null).data().items();
     assertThrows(UnsupportedOperationException.class, list::clear);
     mvc.perform(
             put("/posts/1")
@@ -117,7 +116,8 @@ class PostCommandQueryControllerTest {
     var service =
         new PostQueryService(failingRepository) {
           @Override
-          public List<Post> getPosts(PostListQuery query) {
+          public org.sopt.post.application.port.in.query.dto.PostListResult getPosts(
+              PostListQuery query) {
             throw new IllegalStateException("internal secret details");
           }
         };
@@ -126,7 +126,8 @@ class PostCommandQueryControllerTest {
                 new PostQueryController(
                     service,
                     new PostFacade(
-                        new PostCommandService(failingRepository, failingRepository), service)))
+                        new PostCommandService(failingRepository, failingRepository, memberQueries),
+                        service)))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
     failingMvc
@@ -139,6 +140,6 @@ class PostCommandQueryControllerTest {
   }
 
   private void createPost() {
-    commands.createPost(new CreatePostRequest("제목", "본문", PostCategory.QUESTION, "작성자"));
+    commands.createPost(new CreatePostRequest("제목", "본문", PostCategory.QUESTION, memberId("작성자")));
   }
 }

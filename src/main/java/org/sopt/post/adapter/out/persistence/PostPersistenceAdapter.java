@@ -4,11 +4,10 @@ import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
-import org.sopt.post.application.port.in.query.PostListQuery;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.application.port.out.SavePostPort;
+import org.sopt.post.application.port.out.dto.PostListCriteria;
 import org.sopt.post.domain.Post;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -26,11 +25,8 @@ public class PostPersistenceAdapter implements LoadPostPort, SavePostPort {
   }
 
   @Override
-  public List<Post> findAll(PostListQuery query) {
-    var pageable = PageRequest.of(query.page(), query.size());
-    return query.category() == null
-        ? postRepository.findAllByOrderByIdAsc(pageable)
-        : postRepository.findAllByCategoryOrderByIdAsc(query.category(), pageable);
+  public List<Post> findAll(PostListCriteria criteria) {
+    return postRepository.findPosts(criteria);
   }
 
   @Override
@@ -43,9 +39,12 @@ public class PostPersistenceAdapter implements LoadPostPort, SavePostPort {
     if (postRepository.incrementViewCount(id) == 0) {
       return false;
     }
-    // 벌크 UPDATE 전 flush로 미반영 수정을 보존하고, 대상만 갱신해 다른 엔티티의 변경 감지를 유지한다.
-    // 참조 획득은 SELECT하지 않으며, refresh에서 대상만 한 번 읽는다.
-    entityManager.refresh(entityManager.getReference(Post.class, id));
+    // 이미 읽은 대상만 refresh해 벌크 UPDATE 결과를 반영하고 다른 엔티티의 변경 감지를 유지합니다.
+    // 아직 읽지 않은 프록시는 다음 조회에서 회원과 함께 로드하므로 중복 SELECT를 생략합니다.
+    Post reference = entityManager.getReference(Post.class, id);
+    if (entityManager.getEntityManagerFactory().getPersistenceUnitUtil().isLoaded(reference)) {
+      entityManager.refresh(reference);
+    }
     return true;
   }
 

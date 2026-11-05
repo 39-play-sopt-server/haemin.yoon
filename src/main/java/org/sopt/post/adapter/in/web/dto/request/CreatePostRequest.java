@@ -3,6 +3,7 @@ package org.sopt.post.adapter.in.web.dto.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.sopt.post.adapter.in.web.dto.PostCategory;
 import org.sopt.post.domain.Post;
@@ -19,5 +20,4 @@ public record CreatePostRequest(
         @Schema(description = "본문", example = "Scalar에서 API를 테스트합니다.")
         String content,
     @NotNull @Schema(description = "게시글 분류", example = "QUESTION") PostCategory category,
-    @NotBlank @Size(max = Post.MAX_AUTHOR_LENGTH) @Schema(description = "작성자", example = "홍길동")
-        String author) {}
+    @NotNull @Positive @Schema(description = "작성할 활성 회원 ID", example = "1") Long memberId) {}

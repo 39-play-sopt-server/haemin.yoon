@@ -8,7 +8,7 @@ import org.sopt.post.domain.Category;
  */
 public interface PostCommandUseCase {
   /** 유효한 게시글을 서버에서 발급한 ID로 생성합니다. */
-  void createPost(String title, String content, Category category, String author);
+  void createPost(String title, String content, Category category, long memberId);
 
   /** 읽었던 버전과 일치할 때 제목·본문을 변경합니다. 경합 시 커밋 단계에서도 충돌할 수 있습니다. */
   void updatePost(long id, String title, String content, long expectedVersion);

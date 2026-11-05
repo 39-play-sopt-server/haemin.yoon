@@ -2,7 +2,7 @@ package org.sopt.post.application.port.out;
 
 import java.util.List;
 import java.util.Optional;
-import org.sopt.post.application.port.in.query.PostListQuery;
+import org.sopt.post.application.port.out.dto.PostListCriteria;
 import org.sopt.post.domain.Post;
 
 /**
@@ -11,10 +11,10 @@ import org.sopt.post.domain.Post;
  */
 public interface LoadPostPort {
   /**
-   * 카테고리 조건을 적용한 뒤 한 페이지를 ID 오름차순으로 반환합니다. 없으면 빈 목록입니다. 엔티티는 진행 중인 트랜잭션에서 관리될 수 있으므로 외부 응답은 별도 DTO로
-   * 변환합니다.
+   * 작성자 ID·카테고리·제목 검색과 커서 경계를 적용한 뒤 생성일·ID 내림차순으로 최대 size + 1개를 반환합니다. 추가 한 건은 다음 목록의 존재 여부를 판단하는 데
+   * 사용합니다. 없으면 빈 목록입니다.
    */
-  List<Post> findAll(PostListQuery query);
+  List<Post> findAll(PostListCriteria criteria);
 
   /** 해당 ID의 게시글을 반환하며, 없으면 Optional.empty()를 반환합니다. */
   Optional<Post> findById(long id);

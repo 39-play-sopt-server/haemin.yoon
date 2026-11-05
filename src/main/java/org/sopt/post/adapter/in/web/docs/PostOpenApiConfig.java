@@ -8,6 +8,7 @@ import org.sopt.global.docs.OpenApiResponses;
 import org.sopt.global.exception.GlobalErrorCode;
 import org.sopt.global.response.BaseResponse;
 import org.sopt.global.response.ValidationViolation;
+import org.sopt.member.domain.exception.MemberErrorCode;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +22,30 @@ public class PostOpenApiConfig {
     return openApi ->
         openApi
             .getComponents()
+            .addResponses(
+                "PostLikeBadRequest",
+                OpenApiResponses.errorResponses(
+                    "게시글·회원 ID는 양수인 long 정수여야 합니다. 형식 오류는 INVALID_REQUEST, 0 이하는 INVALID_LIKE_ID입니다.",
+                    Map.of(
+                        "InvalidRequest",
+                        BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST),
+                        "InvalidLikeId",
+                        BaseResponse.failure(PostErrorCode.INVALID_LIKE_ID))))
+            .addResponses(
+                "PostLikeNotFound",
+                OpenApiResponses.errorResponses(
+                    "활성 회원 또는 게시글이 없습니다. 회원 확인을 먼저 수행합니다.",
+                    Map.of(
+                        "MemberNotFound",
+                        BaseResponse.failure(MemberErrorCode.MEMBER_NOT_FOUND),
+                        "PostNotFound",
+                        BaseResponse.failure(PostErrorCode.POST_NOT_FOUND))))
+            .addResponses(
+                "PostLikeBusy",
+                OpenApiResponses.errorResponse(
+                    "데드락·잠금 충돌·잠금 조회 시간 초과로 최대 3회 시도 후 실패했습니다. 같은 PUT 또는 DELETE를 다시 요청할 수 있습니다.",
+                    PostErrorCode.POST_LIKE_BUSY,
+                    List.of()))
             .addResponses("PostListBadRequest", listRequestErrors())
             .addResponses(
                 "InvalidPostId",
@@ -31,12 +56,12 @@ public class PostOpenApiConfig {
             .addResponses(
                 "PostCreateBadRequest",
                 requestErrors(
-                    "제목·본문·작성자는 공백일 수 없고 카테고리는 필수입니다(VALIDATION_FAILED). "
+                    "제목·본문은 공백일 수 없고 카테고리와 양수 memberId는 필수입니다(VALIDATION_FAILED). "
                         + "요청 스키마의 maxLength 초과 시에도 VALIDATION_FAILED를 반환하며 필드 오류 코드는 INVALID_LENGTH입니다. "
-                        + "제목·본문·작성자에 NUL(U+0000) 문자가 포함되면 NUL_CHARACTER_NOT_ALLOWED를 반환합니다. "
+                        + "제목·본문에 NUL(U+0000) 문자가 포함되면 NUL_CHARACTER_NOT_ALLOWED를 반환합니다. "
                         + "본문 누락, 잘못된 JSON 또는 허용되지 않은 카테고리는 INVALID_REQUEST를 반환합니다. "
                         + "카테고리는 GENERAL·QUESTION·INFORMATION 문자열만 허용하며 숫자와 숫자 문자열은 거부합니다.",
-                    List.of("title", "content", "category", "author")))
+                    List.of("title", "content", "category", "memberId")))
             .addResponses(
                 "PostUpdateBadRequest",
                 requestErrors(
@@ -61,9 +86,13 @@ public class PostOpenApiConfig {
     Map<String, BaseResponse<Void>> examples = new LinkedHashMap<>();
     examples.put("InvalidPagination", BaseResponse.failure(PostErrorCode.INVALID_PAGINATION));
     examples.put("InvalidRequest", BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));
+    examples.put("InvalidAuthorId", BaseResponse.failure(PostErrorCode.INVALID_AUTHOR_ID));
+    examples.put("InvalidCursor", BaseResponse.failure(PostErrorCode.INVALID_CURSOR));
+    examples.put(
+        "InvalidSearchKeyword", BaseResponse.failure(PostErrorCode.INVALID_SEARCH_KEYWORD));
     return OpenApiResponses.errorResponses(
-        "page는 0 이상, size는 1~100이어야 하고 page * size는 2147483647 이하여야 합니다(INVALID_PAGINATION). "
-            + "정수가 아닌 page·size, int 범위를 벗어나는 숫자 또는 허용되지 않은 category는 INVALID_REQUEST를 반환합니다.",
+        "size는 1~100이어야 합니다(INVALID_PAGINATION). authorId는 양수여야 합니다(INVALID_AUTHOR_ID). 잘못된 커서 또는 작성자 ID·카테고리·검색어가 다른 커서는 INVALID_CURSOR입니다. 검색어는 앞뒤 공백 제거 후 최대 200자이며 NUL을 포함할 수 없습니다(INVALID_SEARCH_KEYWORD). "
+            + "정수가 아닌 size, int 범위를 벗어나는 숫자 또는 허용되지 않은 category는 INVALID_REQUEST를 반환합니다.",
         examples);
   }
 

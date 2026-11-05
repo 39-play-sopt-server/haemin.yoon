@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
+import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -21,7 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class PostVersionHttpTest {
+class PostVersionHttpTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
   @Autowired PostCommandUseCase commands;
@@ -30,13 +31,13 @@ class PostVersionHttpTest {
   @BeforeEach
   void createPost() {
     jdbc.update("DELETE FROM posts");
-    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, "작성자");
+    commands.createPost("기존 제목", "기존 본문", Category.GENERAL, memberId("작성자"));
     id = jdbc.queryForObject("SELECT id FROM posts", Long.class);
   }
 
   @Test
   void detailAndListExposeVersionWithoutViewIncrementsChangingIt() throws Exception {
-    mvc.perform(get("/posts")).andExpect(jsonPath("$.data[0].version").value(0));
+    mvc.perform(get("/posts")).andExpect(jsonPath("$.data.items[0].version").value(0));
     for (int count = 1; count <= 2; count++) {
       mvc.perform(get("/posts/{id}", id))
           .andExpect(status().isOk())

@@ -7,23 +7,20 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import org.sopt.global.entity.BaseEntity;
 import org.sopt.post.domain.exception.PostErrorCode;
 import org.sopt.post.domain.exception.PostException;
 
 /** 게시글의 JPA 매핑과 생성·수정 시 유효성 규칙을 관리합니다. */
 @Entity
 @Table(name = "posts")
-public class Post {
+public class Post extends BaseEntity {
   /** 입력 길이 상한입니다. DTO의 Size와 동일하게 UTF-16 코드 단위로 계산합니다. */
   public static final int MAX_TITLE_LENGTH = 200;
 
   public static final int MAX_CONTENT_LENGTH = 10_000;
-  public static final int MAX_AUTHOR_LENGTH = 50;
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,15 +36,20 @@ public class Post {
   @Column(nullable = false, length = 30)
   private Category category;
 
-  @Column(nullable = false, columnDefinition = "text")
-  private String author;
+  @Column(name = "member_id", nullable = false, updatable = false)
+  private long authorMemberId;
 
-  @Column(name = "created_at", nullable = false, updatable = false)
-  private LocalDateTime createdAt;
+  /** 회원 변경·탈퇴와 무관하게 게시 당시 작성자 이름을 보존합니다. */
+  @Column(name = "author_name", nullable = false, updatable = false, columnDefinition = "text")
+  private String authorName;
 
   /** 조회수는 전용 출력 포트의 원자적 UPDATE로 변경하며 일반 엔티티 수정에서 제외합니다. */
   @Column(name = "view_count", nullable = false, updatable = false)
   private long viewCount;
+
+  /** 좋아요 관계와 함께 전용 출력 포트에서 갱신합니다. 본문 편집은 이 값을 덮어쓰지 않습니다. */
+  @Column(name = "like_count", nullable = false, updatable = false)
+  private long likeCount;
 
   /** 편집 충돌을 감지하는 버전입니다. 값은 JPA가 관리하며 조회수 UPDATE에서는 변경하지 않습니다. */
   @Version
@@ -57,30 +59,21 @@ public class Post {
   /** JPA가 DB의 행을 엔티티로 복원할 때 사용합니다. */
   protected Post() {}
 
-  @PrePersist
-  private void normalizeCreatedAt() {
-    createdAt = createdAt.truncatedTo(ChronoUnit.MICROS);
-  }
-
   /** 새 게시글은 ID 없이 생성하고, 저장 시 DB가 ID를 부여합니다. */
-  public Post(String title, String content, Category category, String author) {
+  public Post(String title, String content, Category category, PostAuthor author) {
     validateTitle(title);
     validateContent(content);
     if (category == null) {
       throw new PostException(PostErrorCode.INVALID_CATEGORY);
     }
-    if (author == null || author.isBlank()) {
+    if (author == null) {
       throw new PostException(PostErrorCode.INVALID_AUTHOR);
-    }
-    validateNoNul(author);
-    if (author.length() > MAX_AUTHOR_LENGTH) {
-      throw new PostException(PostErrorCode.AUTHOR_TOO_LONG);
     }
     this.title = title;
     this.content = content;
     this.category = category;
-    this.author = author;
-    this.createdAt = LocalDateTime.now();
+    this.authorMemberId = author.memberId();
+    this.authorName = author.name();
   }
 
   public Long getId() {
@@ -99,12 +92,12 @@ public class Post {
     return category;
   }
 
-  public String getAuthor() {
-    return author;
+  public long getAuthorMemberId() {
+    return authorMemberId;
   }
 
-  public LocalDateTime getCreatedAt() {
-    return createdAt;
+  public String getAuthorName() {
+    return authorName;
   }
 
   public long getViewCount() {
@@ -113,6 +106,10 @@ public class Post {
 
   public long getVersion() {
     return version;
+  }
+
+  public long getLikeCount() {
+    return likeCount;
   }
 
   /** 모든 값을 검증한 뒤 관리 중인 엔티티를 변경합니다. 메타데이터는 유지합니다. */

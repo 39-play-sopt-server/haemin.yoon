@@ -9,6 +9,9 @@ import org.springframework.http.HttpStatus;
  * 구분합니다.
  */
 public enum PostErrorCode implements ErrorCode {
+  INVALID_LIKE_ID(HttpStatus.BAD_REQUEST, "INVALID_LIKE_ID", "게시글 ID와 회원 ID는 양수여야 합니다."),
+  POST_LIKE_BUSY(
+      HttpStatus.SERVICE_UNAVAILABLE, "POST_LIKE_BUSY", "좋아요 처리 중 충돌했습니다. 잠시 후 다시 시도해주세요."),
   POST_NOT_FOUND(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "존재하지 않는 게시글입니다."),
   INVALID_TITLE(HttpStatus.BAD_REQUEST, "INVALID_TITLE", "제목은 비어 있을 수 없습니다."),
   INVALID_CONTENT(HttpStatus.BAD_REQUEST, "INVALID_CONTENT", "본문은 비어 있을 수 없습니다."),
@@ -20,14 +23,14 @@ public enum PostErrorCode implements ErrorCode {
       HttpStatus.BAD_REQUEST,
       "CONTENT_TOO_LONG",
       "본문은 " + Post.MAX_CONTENT_LENGTH + "자를 초과할 수 없습니다."),
-  AUTHOR_TOO_LONG(
-      HttpStatus.BAD_REQUEST,
-      "AUTHOR_TOO_LONG",
-      "작성자는 " + Post.MAX_AUTHOR_LENGTH + "자를 초과할 수 없습니다."),
   INVALID_CATEGORY(HttpStatus.BAD_REQUEST, "INVALID_CATEGORY", "카테고리는 필수입니다."),
-  INVALID_PAGINATION(HttpStatus.BAD_REQUEST, "INVALID_PAGINATION", "페이지 번호 또는 크기가 허용 범위를 벗어났습니다."),
+  INVALID_PAGINATION(HttpStatus.BAD_REQUEST, "INVALID_PAGINATION", "목록 크기가 허용 범위를 벗어났습니다."),
+  INVALID_AUTHOR_ID(HttpStatus.BAD_REQUEST, "INVALID_AUTHOR_ID", "작성자 ID는 양수여야 합니다."),
+  INVALID_SEARCH_KEYWORD(
+      HttpStatus.BAD_REQUEST, "INVALID_SEARCH_KEYWORD", "제목 검색어가 너무 길거나 허용되지 않는 문자를 포함합니다."),
+  INVALID_CURSOR(HttpStatus.BAD_REQUEST, "INVALID_CURSOR", "유효하지 않은 게시글 커서입니다."),
   INVALID_VERSION(HttpStatus.BAD_REQUEST, "INVALID_VERSION", "게시글 버전은 0 이상이어야 합니다."),
-  INVALID_AUTHOR(HttpStatus.BAD_REQUEST, "INVALID_AUTHOR", "작성자는 비어 있을 수 없습니다.");
+  INVALID_AUTHOR(HttpStatus.BAD_REQUEST, "INVALID_AUTHOR", "작성자는 활성 회원이어야 합니다.");
 
   private final HttpStatus httpStatus;
   private final String code;
