@@ -54,6 +54,54 @@ if ! command -v docker >/dev/null 2>&1 \
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
+# OCI Security Lists and the instance firewall are separate layers. The Ubuntu
+# platform image rejects unlisted inbound traffic, so HTTP/HTTPS must be allowed
+# here before Certbot starts its standalone HTTP-01 challenge server.
+cat > /usr/local/sbin/assignment-firewall <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+for port in 80 443; do
+  if iptables -C INPUT -p tcp -m conntrack --ctstate NEW --dport "${port}" -j ACCEPT \
+    >/dev/null 2>&1; then
+    continue
+  fi
+
+  insert_before="$(
+    iptables -L INPUT --line-numbers -n \
+      | awk '($2 == "REJECT" || $2 == "DROP") && !found { print $1; found = 1 }'
+  )"
+
+  if [[ -n "${insert_before}" ]]; then
+    iptables -I INPUT "${insert_before}" -p tcp -m conntrack --ctstate NEW \
+      --dport "${port}" -j ACCEPT
+  else
+    iptables -A INPUT -p tcp -m conntrack --ctstate NEW --dport "${port}" -j ACCEPT
+  fi
+done
+EOF
+chmod 0755 /usr/local/sbin/assignment-firewall
+
+cat > /etc/systemd/system/assignment-firewall.service <<'EOF'
+[Unit]
+Description=Allow assignment HTTP and HTTPS traffic
+Wants=network-online.target
+After=network-online.target
+Before=docker.service certbot.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/assignment-firewall
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable assignment-firewall.service
+systemctl restart assignment-firewall.service
+
 install -d -m 0755 /etc/ssh/sshd_config.d
 cat > /etc/ssh/sshd_config.d/99-assignment-hardening.conf <<'EOF'
 PasswordAuthentication no

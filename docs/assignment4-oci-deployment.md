@@ -152,12 +152,13 @@ Actions의 **Deploy assignment 4 to OCI**에서 진행 상황을 확인합니다
 4. OCI cloud-init 완료 대기
 5. Docker, Compose, Certbot, fail2ban 설치
 6. 1GB VM을 위한 2GB swap 생성
-7. SSH password/root login 비활성화
-8. Let's Encrypt 인증서 발급
-9. GitHub Secrets로 서버 `.env` 생성 및 mode `600` 적용
-10. PostgreSQL, Spring Boot, Nginx 실행
-11. Nginx 설정과 Actuator health 검사
-12. 실패 시 직전 정상 release rollback
+7. OCI Ubuntu host firewall의 TCP 80·443 허용 및 영구 저장
+8. SSH password/root login 비활성화
+9. Let's Encrypt 인증서 발급
+10. GitHub Secrets로 서버 `.env` 생성 및 mode `600` 적용
+11. PostgreSQL, Spring Boot, Nginx 실행
+12. Nginx 설정과 Actuator health 검사
+13. 실패 시 직전 정상 release rollback
 
 서버에 직접 접속해 스크립트를 실행할 필요가 없습니다.
 
@@ -189,8 +190,8 @@ curl -i -X OPTIONS https://lemonham.p-e.kr/posts \
 - **SSH timeout**: OCI Security List/NSG의 22번과 public IPv4를 확인합니다.
 - **Host key verification failed**: `OCI_HOST`와 `OCI_SSH_KNOWN_HOSTS`가 같은 인스턴스인지
   확인합니다.
-- **Certbot 실패**: `dig +short lemonham.p-e.kr`가 OCI IP인지, 80번이 열렸는지
-  확인하고 Actions를 다시 실행합니다.
+- **Certbot 실패**: `dig +short lemonham.p-e.kr`가 OCI IP인지, Security List와 host
+  firewall 양쪽에서 80번이 열렸는지 확인하고 Actions를 다시 실행합니다.
 - **exec format error**: OCI shape와 `OCI_DOCKER_PLATFORM`을 확인합니다.
 - **502 Bad Gateway**: Actions의 deploy 단계에서 app/PostgreSQL 로그를 확인합니다.
 
