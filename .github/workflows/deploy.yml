@@ -1,0 +1,135 @@
+name: Deploy assignment 4 to OCI
+
+on:
+  push:
+    branches:
+      - feat/11/assignment4
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assignment-play-production
+  cancel-in-progress: false
+
+jobs:
+  test-build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out the pushed commit
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify application
+        run: ./gradlew --no-daemon test spotlessCheck
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build application image
+        env:
+          TARGET_PLATFORM: ${{ vars.OCI_DOCKER_PLATFORM || 'linux/amd64' }}
+        run: |
+          docker buildx build \
+            --platform "${TARGET_PLATFORM}" \
+            --tag "assignment-play:${GITHUB_SHA}" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --load \
+            .
+
+      - name: Package image and deployment configuration
+        run: |
+          docker save "assignment-play:${GITHUB_SHA}" | gzip > "image-${GITHUB_SHA}.tar.gz"
+          tar -czf "deployment-${GITHUB_SHA}.tar.gz" compose.yml deploy
+
+      - name: Create production environment file from secrets
+        env:
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+          APP_CORS_ALLOWED_ORIGINS: ${{ secrets.APP_CORS_ALLOWED_ORIGINS }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
+          OCI_SSH_USER: ${{ secrets.OCI_SSH_USER }}
+        run: |
+          for name in APP_DOMAIN APP_CORS_ALLOWED_ORIGINS POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD CERTBOT_EMAIL OCI_SSH_USER; do
+            value="${!name:-}"
+            if [[ -z "${value}" || "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+              echo "${name} must be set and contain exactly one line" >&2
+              exit 1
+            fi
+          done
+          [[ "${APP_DOMAIN}" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "${CERTBOT_EMAIL}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]
+          [[ "${POSTGRES_DB}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
+          [[ "${POSTGRES_USER}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
+          [[ "${POSTGRES_PASSWORD}" =~ ^[A-Fa-f0-9]{32,128}$ ]]
+          [[ "${OCI_SSH_USER}" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          umask 077
+          {
+            printf 'DOMAIN=%s\n' "${APP_DOMAIN}"
+            printf 'APP_CORS_ALLOWED_ORIGINS=%s\n' "${APP_CORS_ALLOWED_ORIGINS}"
+            printf 'POSTGRES_DB=%s\n' "${POSTGRES_DB}"
+            printf 'POSTGRES_USER=%s\n' "${POSTGRES_USER}"
+            printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD}"
+          } > production.env
+
+      - name: Configure verified SSH host
+        env:
+          OCI_SSH_PRIVATE_KEY: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          OCI_SSH_KNOWN_HOSTS: ${{ secrets.OCI_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${OCI_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${OCI_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Bootstrap OCI host and TLS certificate
+        env:
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+          CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_SSH_USER: ${{ secrets.OCI_SSH_USER }}
+        run: |
+          target="${OCI_SSH_USER}@${OCI_HOST}"
+          scp scripts/bootstrap-oci.sh "${target}:/tmp/bootstrap-oci.sh"
+          ssh "${target}" sudo bash /tmp/bootstrap-oci.sh \
+            "${APP_DOMAIN}" "${CERTBOT_EMAIL}" "${OCI_SSH_USER}"
+
+      - name: Upload release to OCI
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_SSH_USER: ${{ secrets.OCI_SSH_USER }}
+        run: |
+          target="${OCI_SSH_USER}@${OCI_HOST}"
+          ssh "${target}" 'mkdir -p assignment-play/incoming assignment-play/releases assignment-play/shared'
+          scp "image-${GITHUB_SHA}.tar.gz" "${target}:assignment-play/incoming/"
+          scp "deployment-${GITHUB_SHA}.tar.gz" "${target}:assignment-play/incoming/"
+          scp scripts/remote-deploy.sh "${target}:assignment-play/incoming/remote-deploy.sh"
+          scp production.env "${target}:assignment-play/incoming/production.env"
+          ssh "${target}" 'install -m 600 assignment-play/incoming/production.env assignment-play/shared/.env && rm -f assignment-play/incoming/production.env'
+
+      - name: Activate release
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_SSH_USER: ${{ secrets.OCI_SSH_USER }}
+        run: |
+          target="${OCI_SSH_USER}@${OCI_HOST}"
+          ssh "${target}" bash assignment-play/incoming/remote-deploy.sh \
+            "${GITHUB_SHA}" "assignment-play:${GITHUB_SHA}"
