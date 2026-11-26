@@ -7,10 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.sopt.support.AuthenticatedMockMvc;
 import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AuthenticatedMockMvc
 @ActiveProfiles("test")
 class MemberHttpApiTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
@@ -26,12 +26,13 @@ class MemberHttpApiTest extends MemberDatabaseSupport {
   @Autowired JsonMapper json;
 
   @Test
-  void createsMemberLinksPostAndKeepsAuthorAfterSoftDeletion() throws Exception {
+  void signedUpMemberLinksPostAndKeepsAuthorAfterSoftDeletion() throws Exception {
     var response =
         mvc.perform(
-                post("/members")
+                post("/auth/signup")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"name\":\"홍길동\"}"))
+                    .content(
+                        "{\"name\":\"홍길동\",\"email\":\"hong@example.com\",\"password\":\"password1234\"}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.code").value("SUCCESS"))
             .andExpect(jsonPath("$.data.name").value("홍길동"))
@@ -82,40 +83,6 @@ class MemberHttpApiTest extends MemberDatabaseSupport {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"{}", "{\"name\":null}", "{\"name\":\" \"}"})
-  void rejectsMissingMemberName(String body) throws Exception {
-    mvc.perform(post("/members").contentType(MediaType.APPLICATION_JSON).content(body))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-        .andExpect(jsonPath("$.violations[0].field").value("name"));
-    assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM members", Integer.class));
-  }
-
-  @Test
-  void validatesNameBoundariesAndNulWithoutWritingInvalidMembers() throws Exception {
-    mvc.perform(
-            post("/members")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(java.util.Map.of("name", "가".repeat(51)))))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.violations[0].code").value("INVALID_LENGTH"));
-    mvc.perform(
-            post("/members")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(java.util.Map.of("name", "앞\0뒤"))))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("MEMBER_NAME_NUL_NOT_ALLOWED"));
-    assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM members", Integer.class));
-    String name = "😀".repeat(25);
-    mvc.perform(
-            post("/members")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(java.util.Map.of("name", name))))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.data.name").value(name));
-  }
-
-  @ParameterizedTest
   @ValueSource(strings = {"null", "0", "-1", "1.5"})
   void rejectsInvalidMemberIdWithoutWritingPost(String id) throws Exception {
     mvc.perform(
@@ -152,8 +119,8 @@ class MemberHttpApiTest extends MemberDatabaseSupport {
 
   @Test
   void allowsSameNameForDifferentMembers() throws Exception {
-    var first = memberCommands.createMember("동명이인");
-    var second = memberCommands.createMember("동명이인");
+    var first = createMember("동명이인");
+    var second = createMember("동명이인");
     assertNotEquals(first.id(), second.id());
   }
 
@@ -161,7 +128,12 @@ class MemberHttpApiTest extends MemberDatabaseSupport {
   void documentsMemberEndpointsAndPostMemberReference() throws Exception {
     mvc.perform(get("/v3/api-docs"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.paths['/members'].post.responses['201']").exists())
+        .andExpect(jsonPath("$.paths['/members'].post").doesNotExist())
+        .andExpect(jsonPath("$.paths['/auth/signup'].post.responses['201']").exists())
+        .andExpect(
+            jsonPath("$.paths['/members/me'].get.responses['401'].$ref")
+                .value("#/components/responses/Unauthorized"))
+        .andExpect(jsonPath("$.paths['/members/me'].get.security[0].bearerAuth").exists())
         .andExpect(
             jsonPath("$.paths['/members/{id}'].delete.responses['404'].$ref")
                 .value("#/components/responses/MemberNotFound"))

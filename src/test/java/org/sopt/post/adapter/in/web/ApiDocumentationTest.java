@@ -85,11 +85,21 @@ class ApiDocumentationTest {
   }
 
   @Test
-  void exposesOnlyPostOperationsWithActualStatusesAndErrorEnvelope() throws Exception {
+  void exposesPostOperationsWithActualStatusesAndErrorEnvelope() throws Exception {
     mvc.perform(get("/v3/api-docs"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.info.title").value("PLAY SOPT SERVER Assignment API"))
-        .andExpect(jsonPath("$.paths", aMapWithSize(5)))
+        .andExpect(
+            jsonPath("$.paths")
+                .value(
+                    allOf(
+                        hasKey("/auth/refresh"),
+                        hasKey("/auth/logout"),
+                        hasKey("/members"),
+                        hasKey("/auth/signup"),
+                        hasKey("/auth/login"),
+                        hasKey("/members/me"),
+                        hasKey("/members/{id}"))))
         .andExpect(jsonPath("$.paths['/posts'].get.summary").value("게시글 목록 조회"))
         .andExpect(jsonPath("$.paths['/posts'].post.responses['201']").exists())
         .andExpect(
@@ -172,8 +182,7 @@ class ApiDocumentationTest {
             jsonPath("$.components.schemas.CreatePostRequest.properties.content.maxLength")
                 .value(10000))
         .andExpect(
-            jsonPath("$.components.schemas.CreateMemberRequest.properties.name.maxLength")
-                .value(50))
+            jsonPath("$.components.schemas.SignupRequest.properties.name.maxLength").value(50))
         .andExpect(
             jsonPath("$.components.schemas.UpdatePostRequest.properties.title.maxLength")
                 .value(200))

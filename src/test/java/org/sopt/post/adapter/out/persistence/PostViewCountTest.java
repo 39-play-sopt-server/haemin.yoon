@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -20,10 +21,10 @@ import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.application.port.out.LoadPostPort;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
+import org.sopt.support.AuthenticatedMockMvc;
 import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -36,7 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
       "spring.jpa.properties.hibernate.generate_statistics=true",
       "spring.jpa.properties.hibernate.session.events.log=false"
     })
-@AutoConfigureMockMvc
+@AuthenticatedMockMvc
 @ActiveProfiles("test")
 class PostViewCountTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
@@ -100,8 +101,7 @@ class PostViewCountTest extends MemberDatabaseSupport {
             new org.sopt.post.application.port.in.query.dto.PostListQuery(
                 null, 20, null, null, null));
     assertEquals(
-        java.util.List.of("둘째 회원", "첫 회원"),
-        posts.posts().stream().map(post -> post.authorName()).toList());
+        List.of("둘째 회원", "첫 회원"), posts.posts().stream().map(post -> post.authorName()).toList());
     assertEquals(1, statistics.getPrepareStatementCount());
   }
 

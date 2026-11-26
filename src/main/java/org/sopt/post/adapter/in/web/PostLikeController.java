@@ -2,9 +2,11 @@ package org.sopt.post.adapter.in.web;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.sopt.global.response.BaseResponse;
+import org.sopt.global.security.SelfOrAdmin;
 import org.sopt.post.adapter.in.web.dto.response.PostLikeResponse;
 import org.sopt.post.application.port.in.command.PostLikeUseCase;
 import org.springframework.http.MediaType;
@@ -20,17 +22,22 @@ import org.springframework.web.bind.annotation.RestController;
 @ApiResponse(responseCode = "400", ref = "#/components/responses/PostLikeBadRequest")
 @ApiResponse(responseCode = "404", ref = "#/components/responses/PostLikeNotFound")
 @ApiResponse(responseCode = "503", ref = "#/components/responses/PostLikeBusy")
+@SecurityRequirement(name = "bearerAuth")
+@ApiResponse(responseCode = "403", ref = "#/components/responses/Forbidden")
+@ApiResponse(responseCode = "401", ref = "#/components/responses/Unauthorized")
 @ApiResponse(responseCode = "500", ref = "#/components/responses/InternalServerError")
 @RequestMapping(
     value = "/posts/{postId}/likes/{memberId}",
     produces = MediaType.APPLICATION_JSON_VALUE)
+@SelfOrAdmin
 public class PostLikeController {
   private final PostLikeUseCase useCase;
 
   @PutMapping
   @Operation(
       summary = "게시글 좋아요",
-      description = "활성 회원의 좋아요를 설정합니다. 반복 요청해도 한 번만 반영합니다. 현재는 인증 없이 memberId를 명시적으로 전달합니다.")
+      description =
+          "활성 회원의 좋아요를 설정합니다. 반복 요청해도 한 번만 반영합니다. Access Token이 필요하며, 일반 회원은 본인의 memberId로 요청합니다.")
   @ApiResponse(responseCode = "200", description = "좋아요 설정 완료. 이미 좋아요한 경우도 성공")
   public BaseResponse<PostLikeResponse> like(
       @PathVariable("postId") long postId, @PathVariable("memberId") long memberId) {

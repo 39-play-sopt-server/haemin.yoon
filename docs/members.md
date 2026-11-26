@@ -2,12 +2,14 @@
 
 ## API 사용 순서
 
-1. `POST /members`에 `{"name":"홍길동"}`을 보내 회원을 생성합니다.
-   HTTP 201과 공통 응답의 `data: {"id":1,"name":"홍길동"}`을 반환합니다.
+1. `POST /auth/signup`에 이름·이메일·비밀번호를 보내 회원을 생성합니다.
+   HTTP 201과 공통 응답의 `data: {"id":1,"name":"홍길동","email":"hong@example.com"}`을 반환합니다.
+   로그인과 토큰 사용은 [이메일·비밀번호 인증과 JWT](auth.md)를 참고합니다. 기존 `POST /members`는 제거했습니다.
 2. 반환받은 회원 ID를 `POST /posts`의 `memberId`로 전달합니다.
    `{"title":"첫 글","content":"본문","category":"GENERAL","memberId":1}`
 3. `GET /posts`의 `data.items`와 `GET /posts/{id}`의 `data`는 `author` 응답 필드에 참조 회원의 이름을 표시합니다.
-4. `DELETE /members/{id}`는 HTTP 200과 공통 성공 응답(data=null)을 반환합니다.
+4. `DELETE /members/{id}`는 HTTP 200과 공통 성공 응답(data=null)을 반환합니다. Access Token이 필요합니다.
+5. `GET /members/me`는 토큰의 회원 `{id, name, email}`을 반환합니다. 이메일 도입 전 회원의 email은 null입니다.
 
 이름은 공백뿐인 값을 허용하지 않으며 UTF-16 코드 단위로 50자까지 허용합니다.
 NUL 문자는 `MEMBER_NAME_NUL_NOT_ALLOWED`로 거부하고 다른 공백·문자는 보존합니다.
@@ -22,7 +24,8 @@ NUL 문자는 `MEMBER_NAME_NUL_NOT_ALLOWED`로 거부하고 다른 공백·문�
   입력 포트는 `port/in/command`·`port/in/query`, 웹 DTO는 `dto/request`·`dto/response`로 구분합니다.
   회원 전용 실패는 `MemberErrorCode`만 받는 `MemberException`으로 전달합니다.
   신규 저장 포트는 ID가 없는 회원만 허용하고 기존 회원의 변경은 JPA 변경 감지로 처리합니다.
-- `Member`는 `BaseEntity`를 상속하고 `id`, `name`, `deleted`를 관리합니다.
+- `Member`는 `BaseEntity`를 상속하고 `id`, `name`, `email`, `passwordHash`, `deleted`를 관리합니다.
+  이메일 정규화·형식 검증과 중복 정책은 회원 도메인이, 평문 비밀번호 정책과 해싱은 `auth` 도메인이 담당합니다.
   `MemberCommandService`는 쓰기 트랜잭션에서 생성·삭제를 담당하고,
   `MemberQueryService`는 읽기 전용 트랜잭션에서 활성 회원 조회를 담당합니다.
   두 서비스는 서로 호출하지 않고 출력 포트를 사용합니다. `LoadMemberPort.findActiveById`가
@@ -54,8 +57,8 @@ V6 적용 이후 기존 author 컬럼으로 쓰는 구버전 서버는 호환되
 
 ## 범위와 확장
 
-현재 기능은 회원 등록·탈퇴와 게시글 작성자 연결입니다. 로그인·인증·작성자 권한 검사는 제공하지 않습니다.
-앞으로 인증을 추가한다면 검증된 로그인 회원 ID를 게시글 생성에 전달하도록 입력 경계를 변경합니다.
+현재 기능은 회원가입·로그인·탈퇴와 게시글 작성자 연결입니다. 회원 목록 조회는 관리자 전용입니다.
+게시글 생성의 memberId와 회원 삭제의 id는 인증된 회원과 대조하며 관리자는 다른 회원도 지정할 수 있습니다.
 회원 이름 변경을 추가한다면 회원 도메인에 수정 유스케이스를 추가하면 되며 기존 글에도 현재 이름이 표시됩니다.
 작성 당시 이름을 보존해야 한다면 게시글에 별도 이름 스냅샷 정책이 필요합니다.
 완전 삭제·익명화가 필요해지면 회원 참조와 보존 정책을 함께 변경해야 합니다.

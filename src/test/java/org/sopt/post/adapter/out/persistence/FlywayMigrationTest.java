@@ -21,7 +21,7 @@ class FlywayMigrationTest {
     String url = existingDatabase();
     Flyway flyway = flyway(url);
     flyway.baseline();
-    assertEquals(10, flyway.migrate().migrationsExecuted);
+    assertEquals(12, flyway.migrate().migrationsExecuted);
     flyway.validate();
     assertOriginalPost(url);
     try (var connection = DriverManager.getConnection(url, "sa", "");
@@ -62,6 +62,11 @@ class FlywayMigrationTest {
       assertTrue(rows.next());
       assertEquals("11", rows.getString(1));
       assertEquals("SQL", rows.getString(2));
+      assertTrue(rows.next());
+      assertEquals("12", rows.getString(1));
+      assertTrue(rows.next());
+      assertEquals("13", rows.getString(1));
+      assertEquals("SQL", rows.getString(2));
       assertFalse(rows.next());
     }
     try (var connection = DriverManager.getConnection(url, "sa", "");
@@ -80,10 +85,13 @@ class FlywayMigrationTest {
         var statement = connection.createStatement();
         var rows =
             statement.executeQuery(
-                "SELECT p.author_name, m.name FROM posts p JOIN members m ON m.id = p.member_id")) {
+                "SELECT p.author_name, m.name, m.email, m.password_hash FROM posts p JOIN members m ON m.id = p.member_id")) {
       assertTrue(rows.next());
       assertEquals("기존 작성자", rows.getString(1));
       assertEquals(rows.getString(1), rows.getString(2));
+      // 이메일 도입 전 회원은 자격 증명이 없어 로그인할 수 없는 상태로 보존합니다.
+      assertNull(rows.getString(3));
+      assertNull(rows.getString(4));
     }
     assertEquals(0, flyway.migrate().migrationsExecuted);
   }

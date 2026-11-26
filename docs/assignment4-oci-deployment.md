@@ -107,12 +107,19 @@ ssh-keygen -lf ~/oci_assignment_known_hosts
 | `POSTGRES_DB` | `assignment` |
 | `POSTGRES_USER` | `assignment` |
 | `POSTGRES_PASSWORD` | 아래 명령 결과 |
+| `JWT_SECRET` | Access Token 서명 키. 아래 명령 결과 |
 | `CERTBOT_EMAIL` | 본인 이메일 |
 
 DB 암호는 로컬에서 생성합니다.
 
 ```bash
 openssl rand -hex 32
+```
+
+JWT 서명 키도 로컬에서 생성합니다. DB 암호와 다른 값을 사용하고, 키를 바꾸면 기존 Access Token의 서명 검증이 실패합니다. 모든 기기의 재발급까지 종료하려면 로그인 세션도 폐기해야 합니다.
+
+```bash
+openssl rand -base64 32
 ```
 
 `APP_CORS_ALLOWED_ORIGINS` 예시:

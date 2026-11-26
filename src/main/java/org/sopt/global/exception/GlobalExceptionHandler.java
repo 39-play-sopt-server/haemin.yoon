@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -31,6 +32,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             GlobalErrorCode.VALIDATION_FAILED,
             RequestValidationErrors.from(exception.getBindingResult()));
     return handleExceptionInternal(exception, body, headers, status, request);
+  }
+
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<BaseResponse<Void>> denied() {
+    return ResponseEntity.status(403).body(BaseResponse.failure(GlobalErrorCode.FORBIDDEN));
   }
 
   @ExceptionHandler(BaseException.class)

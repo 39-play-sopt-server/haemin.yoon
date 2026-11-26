@@ -1,4 +1,4 @@
 package org.sopt.member.application.port.in.dto;
 
-/** 회원 도메인이 외부에 공개하는 불변 스냅샷입니다. */
-public record MemberInfo(long id, String name) {}
+/** 회원 도메인이 외부에 공개하는 불변 스냅샷입니다. 이메일 도입 전에 생성된 회원의 email은 null입니다. */
+public record MemberInfo(long id, String name, String email) {}

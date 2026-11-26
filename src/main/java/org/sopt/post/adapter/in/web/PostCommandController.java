@@ -3,6 +3,7 @@ package org.sopt.post.adapter.in.web;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.sopt.global.response.BaseResponse;
@@ -12,6 +13,7 @@ import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,6 +25,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** HTTP 입력을 검증하고 Command 입력 포트에 전달합니다. 도메인도 게시글의 불변식을 검증합니다. */
 @Tag(name = "게시글", description = "게시글 생성·조회·수정·삭제")
+@SecurityRequirement(name = "bearerAuth")
+@ApiResponse(responseCode = "403", ref = "#/components/responses/Forbidden")
+@ApiResponse(responseCode = "401", ref = "#/components/responses/Unauthorized")
 @ApiResponse(responseCode = "500", ref = "#/components/responses/InternalServerError")
 @RestController
 @RequestMapping(value = "/posts", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -40,6 +45,7 @@ public class PostCommandController {
   @ApiResponse(responseCode = "201", description = "게시글 생성 성공")
   @ApiResponse(responseCode = "400", ref = "#/components/responses/PostCreateBadRequest")
   @ApiResponse(responseCode = "404", ref = "#/components/responses/MemberNotFound")
+  @PreAuthorize("hasRole('ADMIN') or #request.memberId == authentication.principal")
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public BaseResponse<Void> createPost(@Valid @RequestBody CreatePostRequest request) {
@@ -56,6 +62,7 @@ public class PostCommandController {
   @ApiResponse(responseCode = "400", ref = "#/components/responses/PostUpdateBadRequest")
   @ApiResponse(responseCode = "404", ref = "#/components/responses/PostNotFound")
   @ApiResponse(responseCode = "409", ref = "#/components/responses/PostEditConflict")
+  @PostAuthorOrAdmin
   @PutMapping("/{id}")
   public BaseResponse<Void> updatePost(
       @Parameter(description = "게시글 ID", example = "1") @PathVariable("id") long id,
@@ -69,6 +76,7 @@ public class PostCommandController {
   @ApiResponse(responseCode = "400", ref = "#/components/responses/InvalidPostId")
   @ApiResponse(responseCode = "404", ref = "#/components/responses/PostNotFound")
   @ApiResponse(responseCode = "409", ref = "#/components/responses/PostEditConflict")
+  @PostAuthorOrAdmin
   @DeleteMapping("/{id}")
   public BaseResponse<Void> deletePost(
       @Parameter(description = "게시글 ID", example = "1") @PathVariable("id") long id) {

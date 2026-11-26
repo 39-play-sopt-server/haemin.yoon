@@ -9,9 +9,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.sopt.auth.application.port.in.command.AuthCommandUseCase;
 import org.sopt.global.response.BaseResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -38,6 +42,30 @@ import tools.jackson.databind.json.JsonMapper;
 })
 class ErrorHttpIntegrationTest {
   @LocalServerPort int port;
+  @Autowired AuthCommandUseCase auth;
+
+  @Test
+  void rejectsUnauthenticatedRequestOverRealHttpWithSafeEnvelope() throws Exception {
+    try (var client = HttpClient.newHttpClient()) {
+      var request =
+          HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/probe/checked"))
+              .timeout(Duration.ofSeconds(10))
+              .header("Accept", "text/html")
+              .build();
+      var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+      assertEquals(401, response.statusCode());
+      assertTrue(
+          response
+              .headers()
+              .firstValue("Content-Type")
+              .orElseThrow()
+              .startsWith("application/json"));
+      var json = JsonMapper.builder().build().readTree(response.body());
+      assertEquals("UNAUTHORIZED", json.get("code").stringValue());
+      assertTrue(json.get("data").isNull());
+      assertFalse(response.body().contains("secret"));
+    }
+  }
 
   @ParameterizedTest
   @CsvSource({
@@ -51,10 +79,13 @@ class ErrorHttpIntegrationTest {
   void preservesStatusAndSafeEnvelopeOverRealHttp(String path, int status, String code)
       throws Exception {
     try (var client = HttpClient.newHttpClient()) {
+      String email = UUID.randomUUID() + "@example.com";
+      auth.signup("회원", email, "password1234");
       var request =
           HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/probe/" + path))
               .timeout(Duration.ofSeconds(10))
               .header("Accept", "text/html")
+              .header("Authorization", "Bearer " + auth.login(email, "password1234").accessToken())
               .build();
       var response = client.send(request, HttpResponse.BodyHandlers.ofString());
       assertEquals(status, response.statusCode());
