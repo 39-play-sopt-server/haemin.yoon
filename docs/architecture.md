@@ -48,7 +48,12 @@ flowchart LR
 
 | 요청 | 매핑 | 성공 상태 |
 | --- | --- | --- |
-| `POST /members` | 회원 생성 | 201 |
+| `POST /auth/signup` | 회원가입 | 201 |
+| `POST /auth/login` | 로그인·Access Token 발급 | 200 |
+| `POST /auth/refresh` | Refresh Token 회전·Access Token 재발급 | 200 |
+| `POST /auth/logout` | 현재 세션 종료 | 200 |
+| `GET /members` | 관리자 전용 활성 회원 목록 | 200 |
+| `GET /members/me` | 토큰의 회원 조회 | 200 |
 | `DELETE /members/{id}` | 회원 소프트 삭제 | 200 |
 | `POST /posts` | `@PostMapping` | 201 |
 | `GET /posts` | `@GetMapping` | 200 |
@@ -58,6 +63,9 @@ flowchart LR
 | `DELETE /posts/{id}` | `@DeleteMapping("/{id}")` | 200 |
 | `PUT /posts/{postId}/likes/{memberId}` | 좋아요 설정 | 200 |
 | `DELETE /posts/{postId}/likes/{memberId}` | 좋아요 취소 | 200 |
+
+회원가입·로그인·쿠키 기반 재발급, 게시글 조회, 문서, 헬스 체크를 제외한 요청은 `Authorization: Bearer {accessToken}`이 필요합니다.
+인증 구조와 정책은 [이메일·비밀번호 인증과 JWT](auth.md)를 참고하세요.
 
 좋아요는 `PostLike` 연결 엔티티로 회원과 게시글의 다대다를 표현합니다.
 `PostLikeFacade`가 트랜잭션 밖에서 재시도를 조율하고 `PostLikeCommandService`가
@@ -175,7 +183,7 @@ INVALID_REQUEST와 빈 목록을 반환합니다. 현재 적용 범위는 요청
 HEAD·자동 OPTIONS·204처럼 본문이 없거나 프로토콜 차원에서 처리하는 응답에는 봉투를 강제하지 않습니다.
 이미 전송된 응답, 클라이언트 연결 종료, 서블릿 컨테이너에 도달하기 전 프록시 오류는
 애플리케이션에서 새 JSON 본문으로 변환할 수 없습니다.
-향후 Spring Security를 도입해 응답을 직접 작성한다면 별도 인증·인가 핸들러에도 이 계약을 적용해야 합니다.
+Spring Security 필터에서 거부한 401·403도 `SecurityErrorResponder`가 같은 공통 응답으로 작성합니다.
 
 ### 구현 상태와 논의한 확장안
 
@@ -187,10 +195,10 @@ HEAD·자동 OPTIONS·204처럼 본문이 없거나 프로토콜 차원에서 �
 | 요청 추적 식별자 | requestId·traceId 생성 및 응답·로그 연동 미구현 |
 | 입력 검증 | 생성·수정 요청 본문의 필수값 검증과 도메인 검증 |
 | 객체 전체 검증 | 오류 변환과 테스트는 지원하지만 현재 DTO에 객체 전체 제약은 없음 |
-| 인증·인가 | Spring Security 의존성·인증 기능·전용 실패 핸들러 미구현 |
+| 인증·인가 | JWT Access Token 인증과 공통 401·403 응답 구현, 세션 회전·철회 및 역할·소유권 검증 |
 
 GlobalErrorCode의 UNAUTHORIZED·FORBIDDEN·TOO_MANY_REQUESTS 등은 해당 상태의 공통 오류 표현입니다.
-코드가 선언되어 있다는 것만으로 인증·인가나 요청 횟수 제한 기능이 제공되지는 않습니다.
+UNAUTHORIZED는 보안 필터가 사용합니다. 코드가 선언되어 있다는 것만으로 인가나 요청 횟수 제한 기능이 제공되지는 않습니다.
 
 ## 도메인과 저장소
 
@@ -425,6 +433,7 @@ PostDatabaseTest는 서비스 수정의 커밋·메타데이터 유지, 도메�
 기본 주소는 `http://localhost:8080`이며 실행 설정은 `src/main/resources/application.yml`입니다.
 DB_URL 기본값은 `jdbc:postgresql://localhost:5432/assignment`, DB_USERNAME은 JVM의 OS 사용자 이름,
 DB_PASSWORD는 빈 값입니다. 환경변수로 실제 연결·인증 설정을 지정합니다.
+JWT 서명 키 `JWT_SECRET`은 기본값이 없으므로 `export JWT_SECRET=$(openssl rand -base64 32)`처럼 먼저 지정합니다.
 스키마 변경은 Flyway 마이그레이션으로 관리하며 개발·테스트 모두 `ddl-auto: validate`로 매핑을 검증합니다.
 일반 `test`는 독립된 H2 DB를 사용하고, `postgresTest`는 Docker의 임시 PostgreSQL을 사용합니다.
 
@@ -433,12 +442,13 @@ DB_PASSWORD는 빈 값입니다. 환경변수로 실제 연결·인증 설정을
 ./gradlew bootRun
 ```
 
-먼저 `POST /members`에 `{"name":"작성자"}`를 보내고 응답의 회원 ID를 확인합니다.
-아래 memberId에는 실제 생성된 회원 ID를 전달합니다. 게시글 생성 예시:
+먼저 [인증 문서](auth.md)의 순서대로 회원가입·로그인해 회원 ID와 Access Token을 확인합니다.
+아래 memberId에는 실제 가입한 회원 ID를, `$TOKEN`에는 발급받은 토큰을 전달합니다. 게시글 생성 예시:
 
 ```bash
 curl -i http://localhost:8080/posts \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"첫 게시글","content":"본문","category":"GENERAL","memberId":1}'
 ```
 

@@ -49,8 +49,13 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 
 | 메서드 | 경로 | 동작 | 성공 상태 |
 | --- | --- | --- | --- |
-| POST | `/members` | 회원 생성 | 201 |
-| DELETE | `/members/{id}` | 회원 소프트 삭제·게시글 보존 | 200 |
+| POST | `/auth/signup` | 이름·이메일·비밀번호 회원가입 | 201 |
+| POST | `/auth/login` | Access Token 발급 | 200 |
+| POST | `/auth/refresh` | 쿠키로 토큰 재발급 | 200 |
+| POST | `/auth/logout` | 현재 세션 종료 | 200 |
+| GET | `/members` | 전체 활성 회원 조회 (관리자) | 200 |
+| GET | `/members/me` | 토큰의 회원 조회 (인증 필요) | 200 |
+| DELETE | `/members/{id}` | 회원 소프트 삭제·게시글 보존 (인증 필요) | 200 |
 | POST | `/posts` | 게시글 생성 | 201 |
 | GET | `/posts` | cursor·size 무한 스크롤, authorId·category 필터·keyword 제목 검색, 생성일 내림차순·동일 생성일은 ID 내림차순 | 200 |
 | GET | `/posts/{id}` | 단건 조회 | 200 |
@@ -128,7 +133,9 @@ JSON의 `orderSchemaPropertiesBy`는 Java 설정의 `schema-property-order`에 �
 ## 요청 실행
 
 Scalar에서 원하는 API를 열고 요청 실행 버튼을 선택한다.
-먼저 회원 생성 API로 회원 ID를 얻고 게시글 생성의 memberId에 입력한다. 게시글을 만든 뒤 목록에서 ID를 확인하고,
+먼저 회원가입 API로 회원 ID를 얻고, 로그인 API의 accessToken을 Scalar 인증 설정(bearerAuth)에 입력한다.
+게시글 생성·수정·삭제, 좋아요, 회원 API는 토큰이 필요하고 게시글 조회는 토큰 없이 실행할 수 있다.
+게시글 생성의 memberId에는 가입한 회원 ID를 입력한다. 게시글을 만든 뒤 목록에서 ID를 확인하고,
 그 ID로 단건 조회·수정·삭제를 실행할 수 있다.
 화면에서 실행하는 요청은 연결된 DB의 실제 데이터를 변경한다.
 

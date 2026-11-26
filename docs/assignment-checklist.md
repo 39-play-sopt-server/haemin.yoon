@@ -65,7 +65,7 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 - 저장 실패나 롤백에도 DB가 생성한 ID는 소비될 수 있으며 연속 번호를 보장하지 않습니다.
 - 작성 시각은 실행 환경의 로컬 시간을 사용하며 Clock 주입은 적용하지 않았습니다.
 - 성공 코드는 SUCCESS 고정이며 SuccessCode Enum, 중첩 error 객체, 외부 ProblemDetail 응답은 도입하지 않았습니다.
-- requestId·traceId와 로그 연동, 인증·인가, 요청 횟수 제한 기능은 구현하지 않았습니다.
+- requestId·traceId와 로그 연동, 요청 횟수 제한 기능은 구현하지 않았습니다.
 - 커서 기반 무한 스크롤은 총 개수·총 페이지 수와 임의 페이지 이동을 제공하지 않습니다. 최신 글 확인은 첫 목록부터 다시 조회합니다.
 - PostgreSQL의 동시성 정합성·행별 잠금·롤백을 자동 검증하지만, 운영 규모 부하·잠금 대기 측정은 별도 검증이 필요합니다.
 - 필드별 검증 목록은 생성·수정 요청 본문에 적용합니다. 길이는 UTF-16 코드 단위이며 기존 DB의 대형 본문은 축약하지 않습니다. 기존 CRUD 경로 ID에는 양수 제약을 추가하지 않았으며 좋아요 경로 ID에는 적용합니다.
@@ -75,7 +75,7 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 | 요구사항 | 구현 | 검증 |
 | --- | --- | --- |
 | 공통 생성일·수정일 | BaseEntity, V5 | PostDatabaseTest |
-| 회원 생성·삭제 API | POST /members, DELETE /members/{id}, 소프트 삭제 | MemberHttpApiTest, MemberTest |
+| 회원 생성·삭제 API | POST /auth/signup(기존 POST /members 대체), DELETE /members/{id}, 소프트 삭제 | MemberHttpApiTest, MemberTest |
 | 게시글의 필수 Member 참조와 작성자 이름 | Post.member, memberId 입력, author 응답, V6 | 회원 HTTP·PostgreSQL 테스트, 목록 쿼리 검증 |
 | 최신순 페이지네이션 | cursor·size 무한 스크롤, createdAt DESC·id DESC, V7 인덱스 | PostListingTest, PostgreSqlPostIntegrationTest |
 | 제목 검색 | keyword 부분 일치·대소문자 무시, 특수문자 리터럴 처리, 카테고리·커서와 조합 | PostTitleSearchTest, PostCursorCodecTest, PostgreSqlPostIntegrationTest |
@@ -85,4 +85,18 @@ JSON 본문과 요청 URL은 [서버 실행 및 검증](architecture.md#서버-�
 | 좋아요 동시성·데드락 | 게시글 우선 잠금, 관계·카운터 단일 트랜잭션, 새 트랜잭션 재시도·시간 초과 | PostLikeConcurrencyTest, PostLikeFacadeTest |
 
 [회원 API와 데이터 전환 정책](members.md)을 참고하세요.
+
+## 6차 과제 · Spring Security와 JWT
+
+| 요구사항 | 구현 | 검증 |
+| --- | --- | --- |
+| 이메일·비밀번호 회원 | Member.email·passwordHash, 이메일 정규화·유일 제약, V12 | MemberTest, MemberDatabaseTest, FlywayMigrationTest |
+| 회원가입·로그인 | POST /auth/signup·/auth/login, BCrypt, 동일한 로그인 실패 응답 | AuthHttpApiTest |
+| JWT 발급·검증 | AccessTokenIssuer·AccessTokenReader(HS256, 30분), JWT_SECRET 환경 변수 | AccessTokenTest |
+| 인증 필터와 접근 제어 | JwtAuthenticationFilter, SecurityConfig, 공통 401 응답 | SecurityHttpTest, ErrorHttpIntegrationTest, CorsIntegrationTest |
+| 인증 사용자 조회 | GET /members/me, @AuthenticationPrincipal | AuthHttpApiTest |
+
+Refresh Token 회전, 로그아웃·탈퇴 시 세션 무효화, 관리자 전용 회원 목록은 AuthHttpApiTest로 검증합니다.
+
+[이메일·비밀번호 인증과 JWT](auth.md)를 참고하세요.
 [좋아요 API와 동시성 설계](post-likes.md)도 참고하세요.
