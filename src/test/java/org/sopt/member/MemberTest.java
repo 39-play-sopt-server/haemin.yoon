@@ -20,17 +20,55 @@ class MemberTest extends MemberUnitSupport {
   void rejectsBlankName(String name) {
     assertEquals(
         "INVALID_MEMBER_NAME",
-        assertThrows(MemberException.class, () -> new Member(name)).getErrorCode().getCode());
+        assertThrows(MemberException.class, () -> member(name)).getErrorCode().getCode());
   }
 
   @Test
   void validatesNameAndPreservesValidText() {
-    assertThrows(MemberException.class, () -> new Member("가".repeat(51)));
-    assertThrows(MemberException.class, () -> new Member("앞\0뒤"));
-    assertThrows(MemberException.class, () -> new Member("😀".repeat(26)));
-    assertEquals("😀".repeat(25), new Member("😀".repeat(25)).getName());
+    assertThrows(MemberException.class, () -> member("가".repeat(51)));
+    assertThrows(MemberException.class, () -> member("앞\0뒤"));
+    assertThrows(MemberException.class, () -> member("😀".repeat(26)));
+    assertEquals("😀".repeat(25), member("😀".repeat(25)).getName());
     String name = " 한글😀\n\t\\u0000 ";
-    assertEquals(name, new Member(name).getName());
+    assertEquals(name, member(name).getName());
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = {" ", "hong", "hong@", "@example.com", "hong@example", "a b@example.com"})
+  void rejectsInvalidEmail(String email) {
+    assertEquals(
+        "INVALID_MEMBER_EMAIL",
+        assertThrows(MemberException.class, () -> new Member("홍길동", email, "hash"))
+            .getErrorCode()
+            .getCode());
+  }
+
+  @Test
+  void normalizesEmailAndRequiresPasswordHash() {
+    assertEquals("hong@example.com", new Member("홍길동", "  Hong@Example.COM ", "hash").getEmail());
+    assertThrows(IllegalArgumentException.class, () -> new Member("홍길동", "hong@example.com", " "));
+    assertThrows(
+        MemberException.class, () -> new Member("홍길동", "a".repeat(243) + "@example.com", "hash"));
+  }
+
+  @Test
+  void rejectsDuplicateEmailIgnoringCaseIncludingDeletedMembers() {
+    var member = memberCommands.registerMember("홍길동", "hong@example.com", "hash");
+    memberCommands.deleteMember(member.id());
+    assertEquals(
+        "MEMBER_EMAIL_DUPLICATED",
+        assertThrows(
+                MemberException.class,
+                () -> memberCommands.registerMember("다른 이름", "HONG@example.com", "hash"))
+            .getErrorCode()
+            .getCode());
+    assertTrue(memberQueries.findActiveCredentialByEmail("hong@example.com").isEmpty());
+    assertTrue(memberQueries.findActiveCredentialByEmail("not-an-email").isEmpty());
+  }
+
+  private static Member member(String name) {
+    return new Member(name, "member@example.com", "hash");
   }
 
   @Test

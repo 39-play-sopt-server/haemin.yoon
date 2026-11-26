@@ -43,6 +43,19 @@ class CorsIntegrationTest {
   }
 
   @Test
+  void allowsAuthorizationHeaderInPreflightWithoutToken() throws Exception {
+    mockMvc
+        .perform(
+            options("/members/me")
+                .header(HttpHeaders.ORIGIN, "https://frontend.example.com")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.GET.name())
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, HttpHeaders.AUTHORIZATION))
+        .andExpect(status().isOk())
+        .andExpect(
+            header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, HttpHeaders.AUTHORIZATION));
+  }
+
+  @Test
   void rejectsPreflightFromUnknownOrigin() throws Exception {
     mockMvc
         .perform(
@@ -56,7 +69,7 @@ class CorsIntegrationTest {
   void allowsEachOriginInCommaSeparatedConfiguration() throws Exception {
     mockMvc
         .perform(
-            options("/members")
+            options("/auth/signup")
                 .header(HttpHeaders.ORIGIN, "https://admin.example.com")
                 .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.POST.name()))
         .andExpect(status().isOk())

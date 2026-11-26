@@ -11,16 +11,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.application.facade.PostLikeFacade;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
+import org.sopt.support.AuthenticatedMockMvc;
 import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AuthenticatedMockMvc
 @ActiveProfiles("test")
 class PostLikeHttpTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;

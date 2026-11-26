@@ -11,7 +11,7 @@ import org.sopt.member.domain.exception.MemberException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 회원 생성·소프트 삭제를 쓰기 트랜잭션으로 처리합니다. */
+/** 회원 등록·소프트 삭제를 쓰기 트랜잭션으로 처리합니다. */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -20,9 +20,13 @@ public class MemberCommandService implements MemberCommandUseCase {
   private final SaveMemberPort saveMemberPort;
 
   @Override
-  public MemberInfo createMember(String name) {
-    var saved = saveMemberPort.save(new Member(name));
-    return new MemberInfo(saved.getId(), saved.getName());
+  public MemberInfo registerMember(String name, String email, String passwordHash) {
+    var member = new Member(name, email, passwordHash);
+    if (loadMemberPort.existsByEmail(member.getEmail())) {
+      throw new MemberException(MemberErrorCode.MEMBER_EMAIL_DUPLICATED);
+    }
+    var saved = saveMemberPort.save(member);
+    return new MemberInfo(saved.getId(), saved.getName(), saved.getEmail());
   }
 
   @Override

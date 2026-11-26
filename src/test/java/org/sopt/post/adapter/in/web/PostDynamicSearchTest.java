@@ -10,17 +10,17 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
+import org.sopt.support.AuthenticatedMockMvc;
 import org.sopt.support.MemberDatabaseSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AuthenticatedMockMvc
 @ActiveProfiles("test")
 class PostDynamicSearchTest extends MemberDatabaseSupport {
   @Autowired MockMvc mvc;
@@ -31,7 +31,7 @@ class PostDynamicSearchTest extends MemberDatabaseSupport {
   @ParameterizedTest
   @ValueSource(ints = {0, 1, 2, 3, 4, 5, 6, 7})
   void combinesEverySubsetOfTitleCategoryAndAuthor(int mask) throws Exception {
-    long another = memberCommands.createMember("작성자").id();
+    long another = createMember("작성자").id();
     create("Spring A 일반", Category.GENERAL, 1L);
     create("다른 A", Category.QUESTION, 1L);
     create("Spring A 질문", Category.QUESTION, 1L);
@@ -71,7 +71,7 @@ class PostDynamicSearchTest extends MemberDatabaseSupport {
 
   @Test
   void scrollsCombinedSearchAndRejectsCursorReuseForAnotherAuthor() throws Exception {
-    long another = memberCommands.createMember("다른 작성자").id();
+    long another = createMember("다른 작성자").id();
     for (int i = 0; i < 3; i++) {
       create("검색 A" + i, Category.GENERAL, 1L);
       create("검색 B" + i, Category.GENERAL, another);

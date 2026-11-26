@@ -32,6 +32,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+    // 인증: Spring Security 및 JWT
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
     // API 문서: OpenAPI 및 Scalar
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-scalar:3.1.1'
     implementation 'com.scalar.maven:scalar-webmvc:0.6.74'
@@ -52,6 +58,7 @@ dependencies {
 
     // 테스트: Spring MVC 및 JUnit
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation platform('org.junit:junit-bom:6.0.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -72,6 +79,7 @@ testing {
             dependencies {
                 implementation project()
                 implementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+                implementation 'org.springframework.boot:spring-boot-starter-security-test'
                 implementation 'org.testcontainers:testcontainers-postgresql'
                 implementation 'org.testcontainers:testcontainers-junit-jupiter'
             }

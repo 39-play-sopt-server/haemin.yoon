@@ -13,23 +13,27 @@ import org.junit.jupiter.api.Test;
 
 class HexagonalArchitectureTest {
   private static final Path SOURCE_ROOT = Path.of("src/main/java/org/sopt");
+  private static final List<String> DOMAINS = List.of("auth", "member", "post");
   private static final Pattern IMPORT = Pattern.compile("(?m)^import (org\\.sopt\\.[^;]+);");
 
   @Test
   void domainDoesNotDependOnApplicationAdaptersOrAnotherDomain() throws IOException {
     assertNoImports(
-        filesIn("member/domain", "post/domain"),
+        filesIn("auth/domain", "member/domain", "post/domain"),
         imported ->
             imported.contains(".application.")
                 || imported.contains(".adapter.")
-                || imported.startsWith("org.sopt.member.domain") && currentDomain().equals("post")
-                || imported.startsWith("org.sopt.post.domain") && currentDomain().equals("member"));
+                || DOMAINS.stream()
+                    .anyMatch(
+                        domain ->
+                            !domain.equals(currentDomain())
+                                && imported.startsWith("org.sopt." + domain + ".domain")));
   }
 
   @Test
   void inputAdaptersDependOnPortsInsteadOfFacadeServicesOrOutputAdapters() throws IOException {
     assertNoImports(
-        filesIn("member/adapter/in", "post/adapter/in"),
+        filesIn("auth/adapter/in", "member/adapter/in", "post/adapter/in"),
         imported ->
             imported.contains(".application.facade.")
                 || imported.contains(".application.service.")
@@ -39,12 +43,14 @@ class HexagonalArchitectureTest {
   @Test
   void applicationUsesOtherDomainsOnlyThroughInputPorts() throws IOException {
     assertNoImports(
-        filesIn("member/application", "post/application"),
+        filesIn("auth/application", "member/application", "post/application"),
         imported ->
-            currentDomain().equals("post")
+            (currentDomain().equals("post") || currentDomain().equals("auth"))
                     && imported.startsWith("org.sopt.member.")
                     && !imported.startsWith("org.sopt.member.application.port.in.")
-                || currentDomain().equals("member") && imported.startsWith("org.sopt.post."));
+                || currentDomain().equals("member") && imported.startsWith("org.sopt.post.")
+                || !currentDomain().equals("auth") && imported.startsWith("org.sopt.auth.")
+                || currentDomain().equals("auth") && imported.startsWith("org.sopt.post."));
   }
 
   @Test
@@ -52,13 +58,17 @@ class HexagonalArchitectureTest {
     assertNoImports(
         filesIn("global"),
         imported ->
-            imported.startsWith("org.sopt.member.") || imported.startsWith("org.sopt.post."));
+            DOMAINS.stream().anyMatch(domain -> imported.startsWith("org.sopt." + domain + ".")));
   }
 
   @Test
   void inputPortsDoNotExposeJpaEntities() throws IOException {
     assertNoImports(
-        filesIn("member/application/port/in", "post/application/port/in").stream()
+        filesIn(
+                "auth/application/port/in",
+                "member/application/port/in",
+                "post/application/port/in")
+            .stream()
             .filter(file -> file.getFileName().toString().matches(".*(UseCase|Info|Result)\\.java"))
             .toList(),
         imported ->

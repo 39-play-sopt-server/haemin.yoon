@@ -12,7 +12,9 @@ public enum MemberErrorCode implements ErrorCode {
       "MEMBER_NAME_TOO_LONG",
       "회원 이름은 " + Member.MAX_NAME_LENGTH + "자를 초과할 수 없습니다."),
   MEMBER_NAME_NUL_NOT_ALLOWED(
-      HttpStatus.BAD_REQUEST, "MEMBER_NAME_NUL_NOT_ALLOWED", "회원 이름에는 NUL 문자를 포함할 수 없습니다.");
+      HttpStatus.BAD_REQUEST, "MEMBER_NAME_NUL_NOT_ALLOWED", "회원 이름에는 NUL 문자를 포함할 수 없습니다."),
+  INVALID_MEMBER_EMAIL(HttpStatus.BAD_REQUEST, "INVALID_MEMBER_EMAIL", "이메일 형식이 올바르지 않습니다."),
+  MEMBER_EMAIL_DUPLICATED(HttpStatus.CONFLICT, "MEMBER_EMAIL_DUPLICATED", "이미 가입된 이메일입니다.");
 
   private final HttpStatus httpStatus;
   private final String code;

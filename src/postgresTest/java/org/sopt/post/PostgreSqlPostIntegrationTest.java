@@ -29,9 +29,10 @@ import org.sopt.post.application.facade.PostFacade;
 import org.sopt.post.application.port.in.command.PostCommandUseCase;
 import org.sopt.post.domain.Category;
 import org.sopt.post.domain.Post;
+import org.sopt.support.AuthenticatedMockMvc;
+import org.sopt.support.PostgresTestSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -47,7 +48,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AuthenticatedMockMvc
 @Testcontainers
 @Timeout(60)
 class PostgreSqlPostIntegrationTest {
@@ -61,12 +62,13 @@ class PostgreSqlPostIntegrationTest {
     properties.add("spring.datasource.url", DATABASE::getJdbcUrl);
     properties.add("spring.datasource.username", DATABASE::getUsername);
     properties.add("spring.datasource.password", DATABASE::getPassword);
+    PostgresTestSupport.jwtProperties(properties);
   }
 
   @Autowired org.sopt.member.application.port.in.command.MemberCommandUseCase memberCommands;
 
   private long memberId(String name) {
-    return memberCommands.createMember(name).id();
+    return PostgresTestSupport.register(memberCommands, name).id();
   }
 
   @Autowired MockMvc mvc;
@@ -161,7 +163,7 @@ class PostgreSqlPostIntegrationTest {
       assertEquals(18, connection.getMetaData().getDatabaseMajorVersion());
     }
     assertEquals(
-        List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"),
+        List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"),
         jdbc.queryForList(
             "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank",
             String.class));
@@ -421,7 +423,7 @@ class PostgreSqlPostIntegrationTest {
               .schemas(schema)
               .locations("classpath:db/migration", "classpath:db/postgresql")
               .load();
-      assertEquals(8, flyway.migrate().migrationsExecuted);
+      assertEquals(10, flyway.migrate().migrationsExecuted);
       var rows =
           jdbc.queryForList(
               "SELECT title, content, view_count, version, created_at, updated_at FROM "
@@ -475,7 +477,7 @@ class PostgreSqlPostIntegrationTest {
               .load();
       assertThrows(FlywayException.class, flyway::migrate);
       flyway.baseline();
-      assertEquals(10, flyway.migrate().migrationsExecuted);
+      assertEquals(12, flyway.migrate().migrationsExecuted);
       flyway.validate();
       try (var rows =
           statement.executeQuery(
@@ -503,7 +505,9 @@ class PostgreSqlPostIntegrationTest {
               "SQL:8",
               "SQL:9",
               "SQL:10",
-              "SQL:11"),
+              "SQL:11",
+              "SQL:12",
+              "SQL:13"),
           jdbc.queryForList(
               "SELECT type || ':' || version FROM "
                   + schema
@@ -519,9 +523,10 @@ class PostgreSqlPostIntegrationTest {
   void memberDeletionKeepsPostsAndNamesButRejectsNewPostsInPostgreSql() throws Exception {
     var response =
         mvc.perform(
-                post("/members")
+                post("/auth/signup")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"name\":\"홍길동\"}"))
+                    .content(
+                        "{\"name\":\"홍길동\",\"email\":\"hong@example.com\",\"password\":\"password1234\"}"))
             .andExpect(status().isCreated())
             .andReturn()
             .getResponse();

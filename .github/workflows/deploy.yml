@@ -64,10 +64,11 @@ jobs:
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
           OCI_SSH_USER: ${{ secrets.OCI_SSH_USER }}
         run: |
-          for name in APP_DOMAIN APP_CORS_ALLOWED_ORIGINS POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD CERTBOT_EMAIL OCI_SSH_USER; do
+          for name in APP_DOMAIN APP_CORS_ALLOWED_ORIGINS POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD JWT_SECRET CERTBOT_EMAIL OCI_SSH_USER; do
             value="${!name:-}"
             if [[ -z "${value}" || "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
               echo "${name} must be set and contain exactly one line" >&2
@@ -79,6 +80,8 @@ jobs:
           [[ "${POSTGRES_DB}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
           [[ "${POSTGRES_USER}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
           [[ "${POSTGRES_PASSWORD}" =~ ^[A-Fa-f0-9]{32,128}$ ]]
+          # HS256에는 32바이트 이상의 키가 필요합니다. Base64 44자 이상이면 32바이트 이상입니다.
+          [[ "${JWT_SECRET}" =~ ^[A-Za-z0-9+/]{43,}={0,2}$ && ${#JWT_SECRET} -ge 44 ]]
           [[ "${OCI_SSH_USER}" =~ ^[a-z_][a-z0-9_-]*$ ]]
           umask 077
           {
@@ -87,6 +90,7 @@ jobs:
             printf 'POSTGRES_DB=%s\n' "${POSTGRES_DB}"
             printf 'POSTGRES_USER=%s\n' "${POSTGRES_USER}"
             printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD}"
+            printf 'JWT_SECRET=%s\n' "${JWT_SECRET}"
           } > production.env
 
       - name: Configure verified SSH host

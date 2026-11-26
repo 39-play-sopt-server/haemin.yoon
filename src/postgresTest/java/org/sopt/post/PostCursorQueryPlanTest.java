@@ -14,6 +14,7 @@ import org.sopt.post.application.port.in.query.PostQueryUseCase;
 import org.sopt.post.application.port.in.query.dto.PostCursor;
 import org.sopt.post.application.port.in.query.dto.PostListQuery;
 import org.sopt.post.domain.Category;
+import org.sopt.support.PostgresTestSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,6 +43,7 @@ class PostCursorQueryPlanTest {
     properties.add("spring.datasource.url", DATABASE::getJdbcUrl);
     properties.add("spring.datasource.username", DATABASE::getUsername);
     properties.add("spring.datasource.password", DATABASE::getPassword);
+    PostgresTestSupport.jwtProperties(properties);
   }
 
   @Autowired JdbcTemplate jdbc;
